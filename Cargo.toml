@@ -1,0 +1,11 @@
+[package]
+name = "mfform"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+crossterm = "0.27.0"
+log = "0.4.22"
+log4rs = "1.3.0"
+log4rs_test_utils = "0.2.3"
+snailquote = "0.3.1"
