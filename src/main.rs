@@ -573,7 +573,7 @@ fn main() -> io::Result<()> {
                 default_value: _,
             } = widget.widget_type
             {
-                println!(r#"{}="{}""#, name, snailquote::escape(&value));
+                println!("{}={}", name, snailquote::escape(&value));
             }
         }
     }
