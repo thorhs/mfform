@@ -1,4 +1,7 @@
-use crate::{Form, Widget, WidgetType};
+use crate::{
+    form::Form,
+    widget::{Widget, WidgetType},
+};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -69,7 +72,7 @@ pub fn parse_widget(input: &str) -> Result<Widget, String> {
 pub fn parse_str(form: &mut Form, input: &str) -> Result<(), String> {
     let widget = parse_widget(input)?;
 
-    form.widgets.push(widget);
+    form.add_widget(widget);
 
     Ok(())
 }
