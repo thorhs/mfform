@@ -1,0 +1,5 @@
+LABEL 8 2 USER ==>
+LABEL 4 4 PASSWORD ==>
+
+INPUT 17 2 8 username
+INPUT 17 4 8 password

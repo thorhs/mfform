@@ -1,7 +1,4 @@
-use std::{
-    cmp::{max, min},
-    u16::MAX,
-};
+use std::cmp::{max, min};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Pos {
@@ -30,7 +27,7 @@ impl Pos {
             x: (self.x as i16 + by) as u16,
             y: self.y,
         }
-        .constrain((max, MAX))
+        .constrain((max, u16::MAX))
     }
 }
 
@@ -44,17 +41,14 @@ impl Ord for Pos {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match self.y.cmp(&other.y) {
             core::cmp::Ordering::Equal => self.x.cmp(&other.x),
-            ord => return ord,
+            ord => ord,
         }
     }
 }
 
 impl PartialOrd for Pos {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.y.partial_cmp(&other.y) {
-            Some(core::cmp::Ordering::Equal) => self.x.partial_cmp(&other.x),
-            ord => return ord,
-        }
+        Some(self.cmp(other))
     }
 }
 

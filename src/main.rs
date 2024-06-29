@@ -8,10 +8,13 @@ use crossterm::{
 use log4rs::Handle;
 use std::{
     cmp::Ordering,
-    io::{self, Stdout, Write},
+    io::{self, BufRead, Error, Stdout, Write},
 };
 
+mod parser;
 mod pos;
+
+use parser::parse_str;
 use pos::Pos;
 
 #[derive(Debug, Clone, Eq)]
@@ -27,7 +30,7 @@ enum WidgetType {
     },
     Input {
         length: u16,
-        name: &'static str,
+        name: String,
         value: String,
         default_value: String,
     },
@@ -35,10 +38,31 @@ enum WidgetType {
 
 impl Widget {
     fn is_input(&self) -> bool {
-        if let WidgetType::Input { .. } = self.widget_type {
-            true
-        } else {
-            false
+        matches!(self.widget_type, WidgetType::Input { .. })
+    }
+
+    fn new_label(pos: impl Into<Pos>, text: impl Into<String>) -> Self {
+        Self {
+            pos: pos.into(),
+            widget_type: WidgetType::Text { value: text.into() },
+        }
+    }
+
+    fn new_input(
+        pos: impl Into<Pos>,
+        length: u16,
+        name: impl Into<String>,
+        value: impl Into<String>,
+        default_value: impl Into<String>,
+    ) -> Self {
+        Self {
+            pos: pos.into(),
+            widget_type: WidgetType::Input {
+                length,
+                name: name.into(),
+                value: value.into(),
+                default_value: default_value.into(),
+            },
         }
     }
 }
@@ -64,7 +88,7 @@ impl PartialEq for Widget {
 
 impl PartialOrd for Widget {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.pos.partial_cmp(&other.pos)
+        Some(self.cmp(other))
     }
 }
 
@@ -202,16 +226,13 @@ impl Form {
 
                     let _ = std::mem::replace(
                         &mut self.widgets[i],
-                        Widget {
-                            pos: widget.pos,
-
-                            widget_type: WidgetType::Input {
-                                length: *length,
-                                name,
-                                value: set_char_in_string(value, str_pos, key),
-                                default_value: default_value.to_string(),
-                            },
-                        },
+                        Widget::new_input(
+                            widget.pos,
+                            *length,
+                            name,
+                            set_char_in_string(value, str_pos, key),
+                            default_value,
+                        ),
                     );
                 }
             }
@@ -266,16 +287,13 @@ impl Form {
 
                     let _ = std::mem::replace(
                         &mut self.widgets[i],
-                        Widget {
-                            pos: widget.pos,
-
-                            widget_type: WidgetType::Input {
-                                length: *length,
-                                name,
-                                value: Self::backspace_in_string(value, default_value, str_pos + 1),
-                                default_value: default_value.to_string(),
-                            },
-                        },
+                        Widget::new_input(
+                            widget.pos,
+                            *length,
+                            name,
+                            Self::backspace_in_string(value, default_value, str_pos + 1),
+                            default_value,
+                        ),
                     );
                 }
             }
@@ -295,16 +313,13 @@ impl Form {
                 if let Some(str_pos) = self.current_pos.within(&widget.pos, *length) {
                     let _ = std::mem::replace(
                         &mut self.widgets[i],
-                        Widget {
-                            pos: widget.pos,
-
-                            widget_type: WidgetType::Input {
-                                length: *length,
-                                name,
-                                value: Self::delete_in_string(value, str_pos),
-                                default_value: default_value.to_string(),
-                            },
-                        },
+                        Widget::new_input(
+                            widget.pos,
+                            *length,
+                            name,
+                            Self::delete_in_string(value, str_pos),
+                            default_value,
+                        ),
                     );
                 }
             }
@@ -326,7 +341,7 @@ impl Form {
             };
 
             // Set first pos if none set
-            if first_pos == None {
+            if first_pos.is_none() {
                 first_pos = Some(widget.pos);
             }
 
@@ -406,10 +421,7 @@ fn set_char_in_string(s: &str, pos: usize, ch: char) -> String {
 
 impl Form {
     fn add_text(mut self, pos: impl Into<Pos>, text: impl Into<String>) -> Self {
-        self.widgets.push(Widget {
-            pos: pos.into(),
-            widget_type: WidgetType::Text { value: text.into() },
-        });
+        self.widgets.push(Widget::new_label(pos, text));
 
         self
     }
@@ -417,20 +429,13 @@ impl Form {
     fn add_input(
         mut self,
         pos: impl Into<Pos>,
-        len: u16,
+        length: u16,
         name: &'static str,
         default_value: impl Into<String>,
     ) -> Self {
         let value = default_value.into();
-        self.widgets.push(Widget {
-            pos: pos.into(),
-            widget_type: WidgetType::Input {
-                length: len,
-                name,
-                value: value.clone(),
-                default_value: value,
-            },
-        });
+        self.widgets
+            .push(Widget::new_input(pos, length, name, value.clone(), value));
 
         self
     }
@@ -483,9 +488,93 @@ fn enable_logging() -> Handle {
         )
         .unwrap();
 
-    let handle = log4rs::init_config(config).unwrap();
+    log4rs::init_config(config).unwrap()
+}
 
-    handle
+fn create_form(size: impl Into<Pos>) -> io::Result<Form> {
+    /*
+    let form = Form::new(size)?
+        .add_text((0, 0), "Hello world")
+        .add_input((12, 0), 10, "hello", "hello")
+        .add_input((12, 2), 10, "hello2", "hello2")
+        .add_input((25, 0), 10, "hello3", "hello3")
+        .add_text((10, 5), "YoYo")
+        .place_cursor();
+    */
+
+    let mut form = Form::new(size)?;
+
+    let file = std::fs::File::open("screen.mfform")?;
+    let mut reader = std::io::BufReader::new(file);
+
+    let mut line = String::new();
+    while let Ok(read_bytes) = reader.read_line(&mut line) {
+        if read_bytes == 0 {
+            break;
+        }
+
+        if line.len() > 5 {
+            parser::parse_str(&mut form, line.trim())
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        }
+        line.clear();
+    }
+
+    let form = form.place_cursor();
+
+    Ok(form)
+}
+
+enum EventResult {
+    Submit,
+    Abort,
+    None,
+}
+fn keyboard_event(form: &mut Form, ev: Event) -> io::Result<EventResult> {
+    match ev {
+        Event::Key(k) if k.code == KeyCode::Esc => {
+            return Ok(EventResult::Abort);
+        }
+        Event::Key(k) if k.code == KeyCode::Enter => {
+            return Ok(EventResult::Submit);
+        }
+        Event::Key(k) if k.code == KeyCode::Left => {
+            form.move_event(k.code);
+        }
+        Event::Key(k) if k.code == KeyCode::Right => {
+            form.move_event(k.code);
+        }
+        Event::Key(k) if k.code == KeyCode::Up => {
+            form.move_event(k.code);
+        }
+        Event::Key(k) if k.code == KeyCode::Down => {
+            form.move_event(k.code);
+        }
+        Event::Key(k) if k.code == KeyCode::Tab => {
+            if let Some(pos) = form.find_next_input() {
+                form.current_pos = pos;
+            }
+        }
+        Event::Key(k) if k.code == KeyCode::BackTab => {
+            if let Some(pos) = form.find_prev_input() {
+                form.current_pos = pos;
+            }
+        }
+        Event::Key(k) if k.code == KeyCode::Backspace => {
+            form.key_backspace()?;
+        }
+        Event::Key(k) if k.code == KeyCode::Delete => {
+            form.key_delete()?;
+        }
+        Event::Key(k) => {
+            if let KeyCode::Char(c) = k.code {
+                form.key(c);
+            }
+        }
+        _ => unimplemented!(),
+    }
+
+    Ok(EventResult::None)
 }
 
 fn main() -> io::Result<()> {
@@ -498,13 +587,7 @@ fn main() -> io::Result<()> {
 
     enable_raw_mode()?;
 
-    let mut form = Form::new((80, 24))?
-        .add_text((0, 0), "Hello world")
-        .add_input((12, 0), 10, "hello", "hello")
-        .add_input((12, 2), 10, "hello2", "hello2")
-        .add_input((25, 0), 10, "hello3", "hello3")
-        .add_text((10, 5), "YoYo")
-        .place_cursor();
+    let mut form = create_form((82, 24))?;
 
     let mut submit = false;
     loop {
@@ -512,68 +595,30 @@ fn main() -> io::Result<()> {
 
         let ev = event::read()?;
 
-        match ev {
-            Event::Key(k) if k.code == KeyCode::Esc => {
-                break;
-            }
-            Event::Key(k) if k.code == KeyCode::Enter => {
+        match keyboard_event(&mut form, ev)? {
+            EventResult::Abort => break,
+            EventResult::Submit => {
                 submit = true;
                 break;
             }
-            Event::Key(k) if k.code == KeyCode::Left => {
-                form.move_event(k.code);
-            }
-            Event::Key(k) if k.code == KeyCode::Right => {
-                form.move_event(k.code);
-            }
-            Event::Key(k) if k.code == KeyCode::Up => {
-                form.move_event(k.code);
-            }
-            Event::Key(k) if k.code == KeyCode::Down => {
-                form.move_event(k.code);
-            }
-            Event::Key(k) if k.code == KeyCode::Tab => {
-                if let Some(pos) = form.find_next_input() {
-                    form.current_pos = pos;
-                }
-            }
-            Event::Key(k) if k.code == KeyCode::BackTab => {
-                if let Some(pos) = form.find_prev_input() {
-                    form.current_pos = pos;
-                }
-            }
-            Event::Key(k) if k.code == KeyCode::Backspace => {
-                form.key_backspace()?;
-            }
-            Event::Key(k) if k.code == KeyCode::Delete => {
-                form.key_delete()?;
-            }
-            Event::Key(k) => {
-                if let KeyCode::Char(c) = k.code {
-                    form.key(c);
-                }
-            }
-            _ => unimplemented!(),
-        }
+            EventResult::None => (),
+        };
     }
 
     disable_raw_mode()?;
 
     stdout.execute(terminal::LeaveAlternateScreen)?;
-    //.execute(cursor::MoveToNextLine(1))?
-    //.execute(terminal::Clear(ClearType::FromCursorDown))?
-    //.execute(style::ResetColor)?;
 
     if submit {
-        for widget in form.widgets {
+        for widget in &form.widgets {
             if let WidgetType::Input {
                 length: _,
                 name,
                 value,
                 default_value: _,
-            } = widget.widget_type
+            } = &widget.widget_type
             {
-                println!("{}={}", name, snailquote::escape(&value));
+                println!("{}={}", name, snailquote::escape(value));
             }
         }
     }
@@ -582,107 +627,4 @@ fn main() -> io::Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::iter::empty;
-
-    use super::*;
-
-    #[test]
-    fn find_next() {
-        log4rs_test_utils::test_logging::init_logging_once_for(empty(), None, None);
-
-        let mut form = Form::new((80, 24))
-            .unwrap()
-            .add_text((0, 0), "Hello world")
-            .add_input((12, 0), 10, "hello", "hello")
-            .add_input((12, 2), 10, "hello2", "hello2")
-            .add_input((25, 0), 10, "hello3", "hello3")
-            .add_text((10, 5), "YoYo");
-
-        // Before first field
-        form.current_pos = (0, 0).into();
-        assert_eq!(
-            form.find_next_input().unwrap(),
-            (12, 0).into(),
-            "Before first field"
-        );
-
-        form.current_pos = (12, 0).into();
-        assert_eq!(
-            form.find_next_input().unwrap(),
-            (25, 0).into(),
-            "On first field"
-        );
-
-        form.current_pos = (25, 0).into();
-        assert_eq!(
-            form.find_next_input().unwrap(),
-            (12, 2).into(),
-            "On second field"
-        );
-
-        // Last field -> First field
-        form.current_pos = (12, 2).into();
-        assert_eq!(
-            form.find_next_input().unwrap(),
-            (12, 0).into(),
-            "Last field -> First field"
-        );
-
-        // After last field
-        form.current_pos = (25, 8).into();
-        assert_eq!(
-            form.find_next_input().unwrap(),
-            (12, 0).into(),
-            "After last field"
-        );
-
-        // Middle of fields
-        form.current_pos = (25, 1).into();
-        assert_eq!(
-            form.find_next_input().unwrap(),
-            (12, 2).into(),
-            "Middle of fields"
-        );
-    }
-
-    #[test]
-    fn backspace() {
-        let input = "12345678901";
-
-        let output = Form::backspace_in_string(input, "abcdefhijkl", 1);
-        assert_eq!(output, "1b345678901");
-
-        let output = Form::backspace_in_string(input, "abcdefhijkl", 0);
-        assert_eq!(output, "a2345678901");
-
-        let output = Form::backspace_in_string(input, "abcdefhijkl", 10);
-        assert_eq!(output, "1234567890l");
-
-        let output = Form::backspace_in_string(input, "abcdefhijkl", 11);
-        assert_eq!(output, "12345678901", "Delete after input string");
-
-        let output = Form::backspace_in_string(input, "abcdefh", 7);
-        assert_eq!(output, "1234567 901");
-    }
-
-    #[test]
-    fn delete() {
-        let input = "12345678901";
-
-        let output = Form::delete_in_string(input, 1);
-        assert_eq!(output, "1345678901");
-
-        let output = Form::delete_in_string(input, 0);
-        assert_eq!(output, "2345678901");
-
-        let output = Form::delete_in_string(input, 10);
-        assert_eq!(output, "1234567890");
-
-        let output = Form::delete_in_string(input, 11);
-        assert_eq!(output, "12345678901", "Delete after input string");
-
-        let output = Form::delete_in_string(input, 7);
-        assert_eq!(output, "1234567901");
-    }
-}
+mod tests;
