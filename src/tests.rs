@@ -1,5 +1,7 @@
 use std::iter::empty;
 
+use crate::widget::Widget;
+
 use super::*;
 
 #[test]
@@ -9,10 +11,34 @@ fn find_next() {
     let mut form = Form::new((80, 24))
         .unwrap()
         .add_text((0, 0), "Hello world")
-        .add_input((12, 0), 10, "hello", "hello")
-        .add_input((12, 2), 10, "hello2", "hello2")
-        .add_input((25, 0), 10, "hello3", "hello3")
         .add_text((10, 5), "YoYo");
+    form.add_widget(Widget::new_generic(
+        (12, 0),
+        10,
+        "hello",
+        "hello",
+        "",
+        None::<Vec<_>>,
+        None,
+    ));
+    form.add_widget(Widget::new_generic(
+        (12, 2),
+        10,
+        "hello2",
+        "hello2",
+        "",
+        None::<Vec<_>>,
+        None,
+    ));
+    form.add_widget(Widget::new_generic(
+        (25, 0),
+        10,
+        "hello3",
+        "hello3",
+        "",
+        None::<Vec<_>>,
+        None,
+    ));
 
     // Before first field
     form.current_pos = (0, 0).into();
@@ -59,26 +85,6 @@ fn find_next() {
         (12, 2).into(),
         "Middle of fields"
     );
-}
-
-#[test]
-fn backspace() {
-    let input = "12345678901";
-
-    let output = Form::backspace_in_string(input, "abcdefhijkl", 1);
-    assert_eq!(output, "1b345678901");
-
-    let output = Form::backspace_in_string(input, "abcdefhijkl", 0);
-    assert_eq!(output, "a2345678901");
-
-    let output = Form::backspace_in_string(input, "abcdefhijkl", 10);
-    assert_eq!(output, "1234567890l");
-
-    let output = Form::backspace_in_string(input, "abcdefhijkl", 11);
-    assert_eq!(output, "12345678901", "Delete after input string");
-
-    let output = Form::backspace_in_string(input, "abcdefh", 7);
-    assert_eq!(output, "1234567 901");
 }
 
 #[test]
