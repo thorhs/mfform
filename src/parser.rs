@@ -37,8 +37,9 @@ fn parse_label(input: &str) -> IResult<&str, Widget> {
 fn parse_input(input: &str) -> IResult<&str, Widget> {
     // INPUT 5 111 10 nafn texti hér
 
-    let (rest, (_, x, _, y, _, length, _, name, _)) = tuple((
-        tag("INPUT "),
+    let (rest, (widget_type, _, x, _, y, _, length, _, name, _)) = tuple((
+        alt((tag("INPUT"), tag("PASSWORD"), tag("GENERIC"))),
+        multispace1,
         u16,
         multispace1,
         u16,
@@ -49,22 +50,95 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
         multispace0,
     ))(input)?;
 
-    Ok((
-        "",
-        Widget {
-            pos: (x, y).into(),
-            widget_type: WidgetType::Input {
-                length,
-                name: name.to_string(),
-                value: rest.to_string(),
-                default_value: rest.to_string(),
+    match widget_type {
+        "INPUT" => Ok((
+            "",
+            Widget {
+                pos: (x, y).into(),
+                widget_type: WidgetType::Input {
+                    length,
+                    name: name.to_string(),
+                    value: rest.to_string(),
+                    default_value: rest.to_string(),
+                },
             },
-        },
-    ))
+        )),
+        "PASSWORD" => Ok((
+            "",
+            Widget {
+                pos: (x, y).into(),
+                widget_type: WidgetType::Password {
+                    length,
+                    name: name.to_string(),
+                    value: rest.to_string(),
+                },
+            },
+        )),
+        "GENERIC" => Ok((
+            "",
+            Widget {
+                pos: (x, y).into(),
+                widget_type: WidgetType::Password {
+                    length,
+                    name: name.to_string(),
+                    value: rest.to_string(),
+                },
+            },
+        )),
+        _ => unimplemented!(),
+    }
+}
+
+fn parse_number(input: &str) -> IResult<&str, Widget> {
+    // INPUT 5 111 10 nafn texti hér
+
+    let (rest, (widget_type, _, x, _, y, _, length, _, name, _)) = tuple((
+        tag("NUMBER"),
+        multispace1,
+        u16,
+        multispace1,
+        u16,
+        multispace1,
+        u16,
+        multispace1,
+        identifier,
+        multispace0,
+    ))(input)?;
+
+    let default_value = if rest.len() > 0 {
+        match str::parse::<i64>(rest) {
+            Ok(i) => i.to_string(),
+            Err(_) => {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    rest,
+                    nom::error::ErrorKind::Digit,
+                )));
+            }
+        }
+    } else {
+        String::new()
+    };
+
+    match widget_type {
+        "NUMBER" => Ok((
+            "",
+            Widget {
+                pos: (x, y).into(),
+                widget_type: WidgetType::Number {
+                    length,
+                    name: name.to_string(),
+                    value: default_value.clone(),
+                    default_value,
+                },
+            },
+        )),
+        _ => unimplemented!(),
+    }
 }
 
 pub fn parse_widget(input: &str) -> Result<Widget, String> {
-    let (_, widget) = alt((parse_label, parse_input))(input).map_err(|e| e.to_string())?;
+    let (_, widget) =
+        alt((parse_label, parse_input, parse_number))(input).map_err(|e| e.to_string())?;
 
     Ok(widget)
 }
