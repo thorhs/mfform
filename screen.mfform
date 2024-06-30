@@ -1,7 +1,9 @@
 LABEL 8 2 USER ===>
 LABEL 4 4 PASSWORD ===>
-LABEL 5 6 DEFAULT ===>
+LABEL 6 6 NUMBER ===>
+LABEL 5 8 DEFAULT ===>
 
 INPUT    18 2 8 username
 PASSWORD 18 4 8 password
-NUMBER   18 6 8 default 1234
+NUMBER   18 6 8 number
+INPUT    18 8 8 default awesome!
