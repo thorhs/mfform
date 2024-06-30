@@ -38,7 +38,7 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
     // INPUT 5 111 10 nafn texti hér
 
     let (rest, (widget_type, _, x, _, y, _, length, _, name, _)) = tuple((
-        alt((tag("INPUT"), tag("PASSWORD"), tag("GENERIC"))),
+        alt((tag("INPUT"), tag("PASSWORD"))),
         multispace1,
         u16,
         multispace1,
@@ -55,11 +55,13 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
             "",
             Widget {
                 pos: (x, y).into(),
-                widget_type: WidgetType::Input {
+                widget_type: WidgetType::Generic {
                     length,
                     name: name.to_string(),
                     value: rest.to_string(),
                     default_value: rest.to_string(),
+                    allowed_characters: None,
+                    mask_char: None,
                 },
             },
         )),
@@ -67,21 +69,13 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
             "",
             Widget {
                 pos: (x, y).into(),
-                widget_type: WidgetType::Password {
+                widget_type: WidgetType::Generic {
                     length,
                     name: name.to_string(),
                     value: rest.to_string(),
-                },
-            },
-        )),
-        "GENERIC" => Ok((
-            "",
-            Widget {
-                pos: (x, y).into(),
-                widget_type: WidgetType::Password {
-                    length,
-                    name: name.to_string(),
-                    value: rest.to_string(),
+                    default_value: "".to_string(),
+                    allowed_characters: None,
+                    mask_char: Some('X'),
                 },
             },
         )),
@@ -105,7 +99,7 @@ fn parse_number(input: &str) -> IResult<&str, Widget> {
         multispace0,
     ))(input)?;
 
-    let default_value = if rest.len() > 0 {
+    let default_value = if !rest.is_empty() {
         match str::parse::<i64>(rest) {
             Ok(i) => i.to_string(),
             Err(_) => {
@@ -124,11 +118,13 @@ fn parse_number(input: &str) -> IResult<&str, Widget> {
             "",
             Widget {
                 pos: (x, y).into(),
-                widget_type: WidgetType::Number {
+                widget_type: WidgetType::Generic {
                     length,
                     name: name.to_string(),
                     value: default_value.clone(),
                     default_value,
+                    allowed_characters: Some(('0'..='9').collect::<Vec<char>>()),
+                    mask_char: None,
                 },
             },
         )),
@@ -175,11 +171,13 @@ mod tests {
         assert_eq!(widget.pos, (5, 111).into());
         assert_eq!(
             widget.widget_type,
-            WidgetType::Input {
+            WidgetType::Generic {
                 length: 10,
                 name: "nafn".to_string(),
                 value: "texti hér".to_string(),
                 default_value: "texti hér".to_string(),
+                allowed_characters: None,
+                mask_char: None,
             }
         );
     }

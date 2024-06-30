@@ -11,23 +11,6 @@ pub enum WidgetType {
     Text {
         value: String,
     },
-    Input {
-        length: u16,
-        name: String,
-        value: String,
-        default_value: String,
-    },
-    Number {
-        length: u16,
-        name: String,
-        value: String,
-        default_value: String,
-    },
-    Password {
-        length: u16,
-        name: String,
-        value: String,
-    },
     Generic {
         length: u16,
         name: String,
@@ -58,10 +41,7 @@ impl PartialOrd for Widget {
 
 impl Widget {
     pub fn is_input(&self) -> bool {
-        matches!(self.widget_type, WidgetType::Input { .. })
-            || matches!(self.widget_type, WidgetType::Number { .. })
-            || matches!(self.widget_type, WidgetType::Password { .. })
-            || matches!(self.widget_type, WidgetType::Generic { .. })
+        matches!(self.widget_type, WidgetType::Generic { .. })
     }
 
     pub fn new_label(pos: impl Into<Pos>, text: impl Into<String>) -> Self {
@@ -71,57 +51,6 @@ impl Widget {
         }
     }
 
-    pub fn new_input(
-        pos: impl Into<Pos>,
-        length: u16,
-        name: impl Into<String>,
-        value: impl Into<String>,
-        default_value: impl Into<String>,
-    ) -> Self {
-        Self {
-            pos: pos.into(),
-            widget_type: WidgetType::Input {
-                length,
-                name: name.into(),
-                value: value.into(),
-                default_value: default_value.into(),
-            },
-        }
-    }
-
-    pub fn new_number(
-        pos: impl Into<Pos>,
-        length: u16,
-        name: impl Into<String>,
-        value: impl Into<String>,
-        default_value: impl Into<String>,
-    ) -> Self {
-        Self {
-            pos: pos.into(),
-            widget_type: WidgetType::Number {
-                length,
-                name: name.into(),
-                value: value.into(),
-                default_value: default_value.into(),
-            },
-        }
-    }
-
-    pub fn new_password(
-        pos: impl Into<Pos>,
-        length: u16,
-        name: impl Into<String>,
-        value: impl Into<String>,
-    ) -> Self {
-        Self {
-            pos: pos.into(),
-            widget_type: WidgetType::Password {
-                length,
-                name: name.into(),
-                value: value.into(),
-            },
-        }
-    }
     pub fn new_generic(
         pos: impl Into<Pos>,
         length: u16,
