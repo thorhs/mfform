@@ -210,34 +210,6 @@ impl Form {
         }
     }
 
-    pub(crate) fn backspace_in_string(input: &str, _default: &str, pos: usize) -> String {
-        let input_len = input.chars().count();
-
-        if pos > input_len {
-            return input.to_string();
-        }
-
-        let mut output: String = input.chars().take(pos - 1).collect();
-        output.extend(input.chars().skip(pos));
-
-        output
-
-        /*
-                if pos == input_len + 1 {
-                    let mut output = input.to_string();
-                    output.truncate(input_len - 1);
-                    return output;
-                }
-
-                input
-                    .chars()
-                    .zip(default.chars() /*.chain(std::iter::repeat(' '))*/)
-                    .enumerate()
-                    .map(|(i, (inp, def))| if i == pos { def } else { inp })
-                    .collect()
-        */
-    }
-
     pub(crate) fn delete_in_string(input: &str, pos: usize) -> String {
         let input_len = input.chars().count();
         if pos > input_len {
@@ -245,10 +217,7 @@ impl Form {
         }
 
         let mut output: String = input.chars().take(pos).collect();
-
-        let rest: String = input.chars().skip(pos + 1).collect();
-
-        output.push_str(&rest);
+        output.extend(input.chars().skip(pos + 1));
 
         output
     }
@@ -279,7 +248,7 @@ impl Form {
                             widget.pos,
                             *length,
                             name,
-                            Self::backspace_in_string(value, default_value, str_pos),
+                            Self::delete_in_string(value, str_pos - 1),
                             default_value,
                             allowed_characters.clone(),
                             *mask_char,
