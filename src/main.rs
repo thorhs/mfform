@@ -38,16 +38,6 @@ fn enable_logging() -> Handle {
 }
 
 fn create_form(size: impl Into<Pos>) -> io::Result<Form> {
-    /*
-    let form = Form::new(size)?
-        .add_text((0, 0), "Hello world")
-        .add_input((12, 0), 10, "hello", "hello")
-        .add_input((12, 2), 10, "hello2", "hello2")
-        .add_input((25, 0), 10, "hello3", "hello3")
-        .add_text((10, 5), "YoYo")
-        .place_cursor();
-    */
-
     let mut form = Form::new(size)?;
 
     let file = std::fs::File::open("screen.mfform")?;
