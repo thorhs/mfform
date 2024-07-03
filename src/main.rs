@@ -1,16 +1,14 @@
-use crossterm::{
-    event::{self, Event, KeyCode},
-    terminal::{self, disable_raw_mode, enable_raw_mode},
-    ExecutableCommand,
-};
+use crossterm::event::{self, Event, KeyCode};
 use log4rs::Handle;
 use std::io::{self, BufRead};
 
+mod app;
 mod form;
 mod parser;
 mod pos;
 mod widget;
 
+use app::App;
 use form::Form;
 use pos::Pos;
 
@@ -112,18 +110,16 @@ fn keyboard_event(form: &mut Form, ev: Event) -> io::Result<EventResult> {
 fn main() -> io::Result<()> {
     let _logger_handle = enable_logging();
 
-    let mut stdout = io::stdout();
+    let stdout = io::stdout();
 
-    stdout.execute(terminal::EnterAlternateScreen)?;
-    stdout.execute(terminal::Clear(terminal::ClearType::All))?;
-
-    enable_raw_mode()?;
+    let mut app = App::with_writer(stdout);
+    app.init()?;
 
     let mut form = create_form((82, 24))?;
 
     let mut submit = false;
     loop {
-        form.display(&mut stdout)?;
+        form.display(&mut io::stdout())?;
 
         let ev = event::read()?;
 
@@ -137,9 +133,7 @@ fn main() -> io::Result<()> {
         };
     }
 
-    disable_raw_mode()?;
-
-    stdout.execute(terminal::LeaveAlternateScreen)?;
+    drop(app);
 
     if submit {
         let fields = form.get_field_and_data();
