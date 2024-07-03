@@ -11,18 +11,15 @@ use crate::pos::Pos;
 
 pub struct Appender {
     start: Pos,
-    size: Pos,
     max_size: usize,
     buffer: Arc<Mutex<VecDeque<String>>>,
 }
 
 impl Appender {
-    pub fn new(start: impl Into<Pos>, size: impl Into<Pos>) -> Self {
-        let size = size.into();
+    pub fn new(start: impl Into<Pos>, size: usize) -> Self {
         Appender {
             start: start.into(),
-            size,
-            max_size: size.y as usize,
+            max_size: size,
             buffer: Arc::new(Mutex::new(VecDeque::default())),
         }
     }

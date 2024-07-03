@@ -15,8 +15,6 @@ use app::App;
 use form::Form;
 use pos::Pos;
 
-static mut GLOBAL_DEBUG_FLAG: bool = true;
-
 fn enable_logging() -> Handle {
     use crate::vec_appender;
     use log::LevelFilter;
@@ -25,7 +23,7 @@ fn enable_logging() -> Handle {
     use log4rs::encode::pattern::PatternEncoder;
 
     let log_buffer = vec_appender::Appender::with_capacity(100);
-    let log_dialog = dialog_appender::Appender::new((0, 26), (82, 5));
+    let log_dialog = dialog_appender::Appender::new((0, 26), 5);
 
     let debug_log = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} - {m}{n}\n")))
@@ -46,11 +44,8 @@ fn enable_logging() -> Handle {
     log4rs::init_config(config).unwrap()
 }
 
-fn toggle_debug() {
-    unsafe {
-        GLOBAL_DEBUG_FLAG = !GLOBAL_DEBUG_FLAG;
-    }
-}
+#[allow(dead_code)]
+fn toggle_debug() {}
 
 fn create_form(size: impl Into<Pos>) -> io::Result<Form> {
     let mut form = Form::new(size)?;
