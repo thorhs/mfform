@@ -1,22 +1,31 @@
 use crossterm::event::{self, Event, KeyCode};
+use log::debug;
 use log4rs::Handle;
 use std::io::{self, BufRead};
 
 mod app;
+mod dialog_appender;
 mod form;
 mod parser;
 mod pos;
+mod vec_appender;
 mod widget;
 
 use app::App;
 use form::Form;
 use pos::Pos;
 
+static mut GLOBAL_DEBUG_FLAG: bool = true;
+
 fn enable_logging() -> Handle {
+    use crate::vec_appender;
     use log::LevelFilter;
     use log4rs::append::file::FileAppender;
     use log4rs::config::{Appender, Config, Root};
     use log4rs::encode::pattern::PatternEncoder;
+
+    let log_buffer = vec_appender::Appender::with_capacity(100);
+    let log_dialog = dialog_appender::Appender::new((0, 26), (82, 5));
 
     let debug_log = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} - {m}{n}\n")))
@@ -25,14 +34,22 @@ fn enable_logging() -> Handle {
 
     let config = Config::builder()
         .appender(Appender::builder().build("debug_log", Box::new(debug_log)))
+        .appender(Appender::builder().build("log_buffer", Box::new(log_buffer)))
+        .appender(Appender::builder().build("log_dialog", Box::new(log_dialog)))
         .build(
             Root::builder()
-                .appender("debug_log")
+                .appender("log_dialog")
                 .build(LevelFilter::Trace),
         )
         .unwrap();
 
     log4rs::init_config(config).unwrap()
+}
+
+fn toggle_debug() {
+    unsafe {
+        GLOBAL_DEBUG_FLAG = !GLOBAL_DEBUG_FLAG;
+    }
 }
 
 fn create_form(size: impl Into<Pos>) -> io::Result<Form> {
@@ -123,12 +140,15 @@ fn main() -> io::Result<()> {
 
         let ev = event::read()?;
 
+        debug!("Key event: {:?}", ev);
+
         match keyboard_event(&mut form, ev)? {
             EventResult::Abort => break,
             EventResult::Submit => {
                 submit = true;
                 break;
             }
+            // EventResult::ToggleDebug => toggle_debug(),
             EventResult::None => (),
         };
     }
