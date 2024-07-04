@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::io::{self, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crossterm::{cursor, style, QueueableCommand};
 
@@ -13,14 +13,16 @@ pub struct Appender {
     start: Pos,
     max_size: usize,
     buffer: Arc<Mutex<VecDeque<String>>>,
+    logging_enabled: Arc<RwLock<bool>>,
 }
 
 impl Appender {
-    pub fn new(start: impl Into<Pos>, size: usize) -> Self {
+    pub fn new(start: impl Into<Pos>, size: usize, logging_enabled: Arc<RwLock<bool>>) -> Self {
         Appender {
             start: start.into(),
             max_size: size,
             buffer: Arc::new(Mutex::new(VecDeque::default())),
+            logging_enabled,
         }
     }
 
@@ -53,7 +55,9 @@ impl Append for Appender {
 
         buffer.push_back(line);
 
-        self.display(&mut std::io::stdout(), &buffer)?;
+        if self.logging_enabled.read().map(|e| *e).unwrap_or(false) {
+            self.display(&mut std::io::stdout(), &buffer)?;
+        }
 
         Ok(())
     }
@@ -65,12 +69,13 @@ impl Debug for Appender {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "VecAppender with {}/{} entries",
+            "VecAppender with {}/{} entries, output enabled: {}",
             self.max_size,
             self.buffer
                 .lock()
                 .expect("Unable to lock buffer to get size")
-                .len()
+                .len(),
+            self.logging_enabled.read().map(|e| *e).unwrap_or(false)
         )
     }
 }
