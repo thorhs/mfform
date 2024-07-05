@@ -10,6 +10,7 @@ pub enum Select {
 #[derive(Debug, Clone, Eq)]
 pub struct Widget {
     pub pos: Pos,
+    pub length: u16,
     pub widget_type: WidgetType,
 }
 
@@ -19,7 +20,6 @@ pub enum WidgetType {
         value: String,
     },
     Generic {
-        length: u16,
         name: String,
         value: String,
         default_value: String,
@@ -53,9 +53,11 @@ impl Widget {
     }
 
     pub fn new_label(pos: impl Into<Pos>, text: impl Into<String>) -> Self {
+        let text: String = text.into();
         Self {
             pos: pos.into(),
-            widget_type: WidgetType::Text { value: text.into() },
+            length: text.len() as u16,
+            widget_type: WidgetType::Text { value: text },
         }
     }
 
@@ -71,8 +73,8 @@ impl Widget {
     ) -> Self {
         Self {
             pos: pos.into(),
+            length,
             widget_type: WidgetType::Generic {
-                length,
                 name: name.into(),
                 value: value.into(),
                 default_value: default_value.into(),

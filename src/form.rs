@@ -86,9 +86,13 @@ fn display_password(
     Ok(())
 }
 
-fn display_generic(stdout: &mut Stdout, pos: Pos, widget: &WidgetType) -> io::Result<()> {
+fn display_generic(
+    stdout: &mut Stdout,
+    pos: Pos,
+    length: u16,
+    widget: &WidgetType,
+) -> io::Result<()> {
     let WidgetType::Generic {
-        length,
         name: _,
         value,
         default_value,
@@ -101,9 +105,9 @@ fn display_generic(stdout: &mut Stdout, pos: Pos, widget: &WidgetType) -> io::Re
     };
 
     if let Some(mask_char) = mask_char {
-        display_password(stdout, pos, value, *length, *mask_char)?;
+        display_password(stdout, pos, value, length, *mask_char)?;
     } else {
-        display_string(stdout, pos, value, default_value, *length)?;
+        display_string(stdout, pos, value, default_value, length)?;
     }
 
     if *select == crate::widget::Select::None {
@@ -152,7 +156,7 @@ impl Form {
                         .queue(style::Print(value))?;
                 }
                 WidgetType::Generic { .. } => {
-                    display_generic(stdout, widget.pos, &widget.widget_type)?;
+                    display_generic(stdout, widget.pos, widget.length, &widget.widget_type)?;
                 }
             }
         }
@@ -193,7 +197,6 @@ impl Form {
             match &widget.widget_type {
                 WidgetType::Text { .. } => (),
                 WidgetType::Generic {
-                    length,
                     name,
                     value,
                     default_value,
@@ -201,20 +204,20 @@ impl Form {
                     mask_char,
                     select,
                 } => {
-                    if let Some(str_pos) = self.current_pos.within(&widget.pos, *length) {
+                    if let Some(str_pos) = self.current_pos.within(&widget.pos, widget.length) {
                         if let Some(ac) = allowed_characters {
                             if !ac.contains(&key) {
                                 return;
                             }
                         }
 
-                        self.current_pos = self.current_pos.move_x(1, widget.pos.x + length);
+                        self.current_pos = self.current_pos.move_x(1, widget.pos.x + widget.length);
 
                         let _ = std::mem::replace(
                             &mut self.widgets[i],
                             Widget::new_generic(
                                 widget.pos,
-                                *length,
+                                widget.length,
                                 name,
                                 set_char_in_string(value, str_pos, key),
                                 default_value,
@@ -244,7 +247,6 @@ impl Form {
     pub fn key_backspace(&mut self) -> io::Result<()> {
         for (i, widget) in self.widgets.clone().iter_mut().enumerate() {
             if let WidgetType::Generic {
-                length,
                 name,
                 value,
                 default_value,
@@ -253,20 +255,20 @@ impl Form {
                 select,
             } = &widget.widget_type
             {
-                if let Some(str_pos) = self.current_pos.within(&widget.pos, *length) {
+                if let Some(str_pos) = self.current_pos.within(&widget.pos, widget.length) {
                     log::debug!("Backspace, at pos: {}", str_pos);
                     // Backspace on first character does nothing
                     if self.current_pos.x == widget.pos.x {
                         return Ok(());
                     }
 
-                    self.current_pos = self.current_pos.move_x(-1, widget.pos.x + length);
+                    self.current_pos = self.current_pos.move_x(-1, widget.pos.x + widget.length);
 
                     let _ = std::mem::replace(
                         &mut self.widgets[i],
                         Widget::new_generic(
                             widget.pos,
-                            *length,
+                            widget.length,
                             name,
                             Self::delete_in_string(value, str_pos - 1),
                             default_value,
@@ -284,7 +286,6 @@ impl Form {
     pub fn key_delete(&mut self) -> io::Result<()> {
         for (i, widget) in self.widgets.clone().iter_mut().enumerate() {
             if let WidgetType::Generic {
-                length,
                 name,
                 value,
                 default_value,
@@ -293,12 +294,12 @@ impl Form {
                 select,
             } = &widget.widget_type
             {
-                if let Some(str_pos) = self.current_pos.within(&widget.pos, *length) {
+                if let Some(str_pos) = self.current_pos.within(&widget.pos, widget.length) {
                     let _ = std::mem::replace(
                         &mut self.widgets[i],
                         Widget::new_generic(
                             widget.pos,
-                            *length,
+                            widget.length,
                             name,
                             Self::delete_in_string(value, str_pos),
                             default_value,
@@ -429,23 +430,6 @@ impl Form {
 
         self
     }
-
-    /*
-    #[allow(dead_code)]
-    pub fn add_input(
-        mut self,
-        pos: impl Into<Pos>,
-        length: u16,
-        name: &'static str,
-        default_value: impl Into<String>,
-    ) -> Self {
-        let value = default_value.into();
-        self.widgets
-            .push(Widget::new_input(pos, length, name, value.clone(), value));
-
-        self
-    }
-    */
 
     pub(crate) fn add_widget(&mut self, widget: Widget) {
         self.widgets.push(widget);

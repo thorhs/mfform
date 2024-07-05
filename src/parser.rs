@@ -1,6 +1,6 @@
 use crate::{
     form::Form,
-    widget::{Select, Widget, WidgetType},
+    widget::{Select, Widget},
 };
 use nom::{
     branch::alt,
@@ -23,15 +23,7 @@ fn parse_label(input: &str) -> IResult<&str, Widget> {
     let (rest, (_, x, _, y, _)) =
         tuple((tag("LABEL "), u16, multispace1, u16, multispace1))(input)?;
 
-    Ok((
-        "",
-        Widget {
-            pos: (x, y).into(),
-            widget_type: WidgetType::Text {
-                value: rest.to_string(),
-            },
-        },
-    ))
+    Ok(("", Widget::new_label((x, y), rest)))
 }
 
 fn parse_input(input: &str) -> IResult<&str, Widget> {
@@ -63,19 +55,6 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
                 None,
                 Select::None,
             ),
-            /*
-                Widget {
-                    pos: (x, y).into(),
-                    widget_type: WidgetType::Generic {
-                        length,
-                        name: name.to_string(),
-                        value: rest.to_string(),
-                        default_value: rest.to_string(),
-                        allowed_characters: None,
-                        mask_char: None,
-                    },
-                },
-            */
         )),
         "PASSWORD" => Ok((
             "",
@@ -88,19 +67,7 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
                 None::<Vec<char>>,
                 Some('*'),
                 Select::None,
-            ), /*
-               Widget {
-                   pos: (x, y).into(),
-                   widget_type: WidgetType::Generic {
-                       length,
-                       name: name.to_string(),
-                       value: rest.to_string(),
-                       default_value: "".to_string(),
-                       allowed_characters: None,
-                       mask_char: Some('X'),
-                   },
-               },
-                   */
+            ),
         )),
         _ => unimplemented!(),
     }
@@ -149,19 +116,6 @@ fn parse_number(input: &str) -> IResult<&str, Widget> {
                 None,
                 Select::None,
             ),
-            /*
-            Widget {
-                pos: (x, y).into(),
-                widget_type: WidgetType::Generic {
-                    length,
-                    name: name.to_string(),
-                    value: default_value.clone(),
-                    default_value,
-                    allowed_characters: Some(('0'..='9').collect::<Vec<char>>()),
-                    mask_char: None,
-                },
-            },
-            */
         )),
         _ => unimplemented!(),
     }
