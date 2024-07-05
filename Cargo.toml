@@ -3,6 +3,14 @@ name = "mfform"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "mfform"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mfform"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = "1.0.86"
 crossterm = "0.27.0"

@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use log4rs::append::Append;
 
-pub struct Appender {
+pub(crate) struct Appender {
     max_size: usize,
     buffer: Arc<Mutex<VecDeque<String>>>,
 }

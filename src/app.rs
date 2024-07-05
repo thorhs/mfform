@@ -11,7 +11,7 @@ use crossterm::{
 use log::debug;
 use log4rs::Handle;
 
-use crate::{dialog_appender, form::Form, parser, pos::Pos};
+use crate::{form::Form, pos::Pos};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum EventResult {
@@ -120,14 +120,13 @@ impl App {
 // Static functions
 impl App {
     fn configure_logging(logging_enabled: Arc<RwLock<bool>>) -> Handle {
-        use crate::vec_appender;
         use log::LevelFilter;
         use log4rs::append::file::FileAppender;
         use log4rs::config::{Appender, Config, Root};
         use log4rs::encode::pattern::PatternEncoder;
 
-        let log_buffer = vec_appender::Appender::with_capacity(100);
-        let log_dialog = dialog_appender::Appender::new((0, 26), 5, logging_enabled);
+        let log_buffer = crate::vec_appender::Appender::with_capacity(100);
+        let log_dialog = crate::dialog_appender::Appender::new((0, 26), 5, logging_enabled);
 
         let debug_log = FileAppender::builder()
             .encoder(Box::new(PatternEncoder::new("{l} - {m}{n}\n")))
@@ -229,7 +228,7 @@ impl App {
 
 // Form creation fucctions
 impl App {
-    pub fn form_from_file(&self, size: impl Into<Pos>) -> io::Result<Form> {
+    pub fn form_from_textfile(&self, size: impl Into<Pos>) -> io::Result<Form> {
         let mut form = Form::new(size)?;
 
         let file = std::fs::File::open("screen.mfform")?;
@@ -242,7 +241,7 @@ impl App {
             }
 
             if line.len() > 5 {
-                parser::parse_str(&mut form, line.trim())
+                crate::parser::parse_str(&mut form, line.trim())
                     .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
             }
             line.clear();

@@ -1,4 +1,4 @@
-use std::io::{self};
+use std::io;
 
 mod app;
 mod dialog_appender;
@@ -16,7 +16,7 @@ fn main() -> io::Result<()> {
     let mut app = App::with_writer(stdout);
     app.init()?;
 
-    let mut form = app.form_from_file((82, 24))?;
+    let mut form = app.form_from_textfile((82, 24))?;
 
     let result = app.execute(&mut form)?;
 
