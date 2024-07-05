@@ -52,6 +52,10 @@ impl Widget {
         matches!(self.widget_type, WidgetType::Generic { .. })
     }
 
+    pub fn has_focus(&self, other: &Pos) -> bool {
+        self.is_input() && self.pos.within(other, self.length).is_some()
+    }
+
     pub fn new_label(pos: impl Into<Pos>, text: impl Into<String>) -> Self {
         let text: String = text.into();
         Self {

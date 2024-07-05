@@ -3,10 +3,11 @@ use std::io;
 mod app;
 mod dialog_appender;
 mod form;
+mod input;
+mod label;
 mod parser;
 mod pos;
 mod vec_appender;
-mod widget;
 
 use app::{App, EventResult};
 

@@ -14,7 +14,7 @@ impl Pos {
         }
     }
 
-    pub fn within(self, other: &Self, length: u16) -> Option<usize> {
+    pub fn within(self, other: Self, length: u16) -> Option<usize> {
         if self.x >= other.x && self.x <= other.x + length && self.y == other.y {
             Some((self.x - other.x) as usize)
         } else {
@@ -63,7 +63,7 @@ mod tests {
         let pos: Pos = (2, 2).into();
         let field: Pos = (0, 2).into();
 
-        let res = pos.within(&field, 4);
+        let res = pos.within(field, 4);
 
         assert_eq!(res, Some(2));
     }
@@ -73,7 +73,7 @@ mod tests {
         let pos: Pos = (6, 2).into();
         let field: Pos = (2, 2).into();
 
-        let res = pos.within(&field, 4);
+        let res = pos.within(field, 4);
 
         assert_eq!(res, Some(4));
     }
@@ -83,7 +83,7 @@ mod tests {
         let pos: Pos = (2, 2).into();
         let field: Pos = (7, 2).into();
 
-        let res = pos.within(&field, 4);
+        let res = pos.within(field, 4);
 
         assert_eq!(res, None);
     }
@@ -93,7 +93,7 @@ mod tests {
         let pos: Pos = (2, 2).into();
         let field: Pos = (2, 0).into();
 
-        let res = pos.within(&field, 4);
+        let res = pos.within(field, 4);
 
         assert_eq!(res, None);
     }

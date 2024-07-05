@@ -5,13 +5,15 @@ use std::{
 };
 
 use crate::{
+    input::{Input, Select},
+    label::Label,
     pos::Pos,
-    widget::{Widget, WidgetType},
 };
 
 #[derive(Debug, Clone)]
 pub struct Form {
-    pub(crate) widgets: Vec<Widget>,
+    pub(crate) labels: Vec<Label>,
+    pub(crate) inputs: Vec<Input>,
     pub(crate) current_pos: Pos,
     pub(crate) size: Pos,
 }
@@ -19,25 +21,23 @@ pub struct Form {
 impl Form {
     pub fn new(size: impl Into<Pos>) -> io::Result<Self> {
         Ok(Self {
-            widgets: Default::default(),
+            labels: Default::default(),
+            inputs: Default::default(),
             current_pos: (0, 0).into(),
             size: size.into(),
         })
     }
 }
 
-fn display_string(
-    stdout: &mut Stdout,
-    pos: Pos,
-    s: &str,
-    default: &str,
-    length: u16,
-) -> io::Result<()> {
+fn display_string(stdout: &mut Stdout, input: &Input) -> io::Result<()> {
     stdout
-        .queue(cursor::MoveTo(pos.x, pos.y))?
+        .queue(cursor::MoveTo(input.pos.x, input.pos.y))?
         .queue(style::SetAttribute(style::Attribute::Underlined))?;
-    for i in 0..(length as usize) {
-        match (s.chars().nth(i), default.chars().nth(i)) {
+    for i in 0..(input.length as usize) {
+        match (
+            input.value.chars().nth(i),
+            input.default_value.chars().nth(i),
+        ) {
             (Some(s), Some(d)) if s != d => {
                 stdout
                     .queue(style::SetForegroundColor(style::Color::DarkRed))?
@@ -66,63 +66,29 @@ fn display_string(
     Ok(())
 }
 
-fn display_password(
-    stdout: &mut Stdout,
-    pos: Pos,
-    s: &str,
-    length: u16,
-    mask_char: char,
-) -> io::Result<()> {
-    let pass_len = s.chars().count();
+fn display_password(stdout: &mut Stdout, input: &Input) -> io::Result<()> {
+    let pass_len = input.value.chars().count();
+
+    // We only get called if there is a mask_char
+    let mask_char = input.mask_char.unwrap();
     stdout
-        .queue(cursor::MoveTo(pos.x, pos.y))?
+        .queue(cursor::MoveTo(input.pos.x, input.pos.y))?
         .queue(style::SetAttribute(style::Attribute::Underlined))?
         .queue(style::SetForegroundColor(style::Color::DarkRed))?
         .queue(style::Print(mask_char.to_string().repeat(pass_len)))?
         .queue(style::SetForegroundColor(style::Color::DarkGreen))?
-        .queue(style::Print(" ".repeat(length as usize - pass_len)))?
+        .queue(style::Print(" ".repeat(input.length as usize - pass_len)))?
         .queue(style::SetAttribute(style::Attribute::NoUnderline))?;
 
     Ok(())
 }
 
-fn display_generic(
-    stdout: &mut Stdout,
-    pos: Pos,
-    length: u16,
-    widget: &WidgetType,
-) -> io::Result<()> {
-    let WidgetType::Generic {
-        name: _,
-        value,
-        default_value,
-        allowed_characters: _,
-        mask_char,
-        select,
-    } = widget
-    else {
-        unimplemented!();
-    };
-
-    if let Some(mask_char) = mask_char {
-        display_password(stdout, pos, value, length, *mask_char)?;
+fn display_generic(stdout: &mut Stdout, input: &Input) -> io::Result<()> {
+    if input.mask_char.is_some() {
+        display_password(stdout, input)?;
     } else {
-        display_string(stdout, pos, value, default_value, length)?;
+        display_string(stdout, input)?;
     }
-
-    if *select == crate::widget::Select::None {
-        stdout
-            .queue(cursor::MoveTo(82 - 6 - 10, 24))?
-            .queue(style::SetForegroundColor(style::Color::DarkGreen))?
-            .queue(style::Print(" F4 - Select "))?;
-        /*
-        } else {
-            stdout
-                .queue(cursor::MoveTo(82 - 3 - 10, 24))?
-                .queue(style::SetForegroundColor(style::Color::DarkGreen))?
-                .queue(style::Print("             "))?;
-        */
-    };
 
     Ok(())
 }
@@ -147,18 +113,28 @@ impl Form {
             .queue(style::Print('─'))?
             .queue(style::Print(" Enter=Submit "))?;
 
-        for widget in self.widgets.clone() {
-            match widget.widget_type {
-                WidgetType::Text { value } => {
-                    stdout
-                        .queue(cursor::MoveTo(widget.pos.x, widget.pos.y))?
-                        .queue(style::SetForegroundColor(style::Color::White))?
-                        .queue(style::Print(value))?;
-                }
-                WidgetType::Generic { .. } => {
-                    display_generic(stdout, widget.pos, widget.length, &widget.widget_type)?;
-                }
-            }
+        if self
+            .inputs
+            .iter()
+            .find(|i| i.has_focus(self.current_pos))
+            .filter(|i| i.select != Select::None)
+            .is_some()
+        {
+            stdout
+                .queue(cursor::MoveTo(82 - 6 - 10, 24))?
+                .queue(style::SetForegroundColor(style::Color::DarkGreen))?
+                .queue(style::Print(" F4 - Select "))?;
+        }
+
+        for label in self.labels.clone() {
+            stdout
+                .queue(cursor::MoveTo(label.pos.x, label.pos.y))?
+                .queue(style::SetForegroundColor(style::Color::White))?
+                .queue(style::Print(label.text))?;
+        }
+
+        for input in self.inputs.clone() {
+            display_generic(stdout, &input)?;
         }
 
         stdout.queue(cursor::MoveTo(self.current_pos.x, self.current_pos.y))?;
@@ -193,43 +169,22 @@ impl Form {
     }
 
     pub fn key(&mut self, key: char) {
-        for (i, widget) in self.widgets.clone().iter_mut().enumerate() {
-            match &widget.widget_type {
-                WidgetType::Text { .. } => (),
-                WidgetType::Generic {
-                    name,
-                    value,
-                    default_value,
-                    allowed_characters,
-                    mask_char,
-                    select,
-                } => {
-                    if let Some(str_pos) = self.current_pos.within(&widget.pos, widget.length) {
-                        if let Some(ac) = allowed_characters {
-                            if !ac.contains(&key) {
-                                return;
-                            }
+        self.inputs
+            .iter_mut()
+            .find(|i| i.has_focus(self.current_pos))
+            .map(|i| {
+                if let Some(str_pos) = self.current_pos.within(i.pos, i.length) {
+                    if let Some(ac) = &i.allowed_characters {
+                        if !ac.contains(&key) {
+                            return;
                         }
-
-                        self.current_pos = self.current_pos.move_x(1, widget.pos.x + widget.length);
-
-                        let _ = std::mem::replace(
-                            &mut self.widgets[i],
-                            Widget::new_generic(
-                                widget.pos,
-                                widget.length,
-                                name,
-                                set_char_in_string(value, str_pos, key),
-                                default_value,
-                                allowed_characters.clone(),
-                                *mask_char,
-                                *select,
-                            ),
-                        );
                     }
+
+                    self.current_pos = self.current_pos.move_x(1, i.pos.x + i.length);
+
+                    i.value = set_char_in_string(&i.value, str_pos, key);
                 }
-            }
-        }
+            });
     }
 
     pub(crate) fn delete_in_string(input: &str, pos: usize) -> String {
@@ -245,97 +200,53 @@ impl Form {
     }
 
     pub fn key_backspace(&mut self) -> io::Result<()> {
-        for (i, widget) in self.widgets.clone().iter_mut().enumerate() {
-            if let WidgetType::Generic {
-                name,
-                value,
-                default_value,
-                allowed_characters,
-                mask_char,
-                select,
-            } = &widget.widget_type
-            {
-                if let Some(str_pos) = self.current_pos.within(&widget.pos, widget.length) {
-                    log::debug!("Backspace, at pos: {}", str_pos);
-                    // Backspace on first character does nothing
-                    if self.current_pos.x == widget.pos.x {
-                        return Ok(());
-                    }
+        self.inputs
+            .iter_mut()
+            .find(|i| i.has_focus(self.current_pos))
+            .map(|i| {
+                if let Some(str_pos) = self.current_pos.within(i.pos, i.length) {
+                    self.current_pos = self.current_pos.move_x(-1, i.pos.x + i.length);
 
-                    self.current_pos = self.current_pos.move_x(-1, widget.pos.x + widget.length);
-
-                    let _ = std::mem::replace(
-                        &mut self.widgets[i],
-                        Widget::new_generic(
-                            widget.pos,
-                            widget.length,
-                            name,
-                            Self::delete_in_string(value, str_pos - 1),
-                            default_value,
-                            allowed_characters.clone(),
-                            *mask_char,
-                            *select,
-                        ),
-                    );
+                    i.value = Self::delete_in_string(&i.value, str_pos - 1);
                 }
-            }
-        }
+            });
         Ok(())
     }
 
     pub fn key_delete(&mut self) -> io::Result<()> {
-        for (i, widget) in self.widgets.clone().iter_mut().enumerate() {
-            if let WidgetType::Generic {
-                name,
-                value,
-                default_value,
-                allowed_characters,
-                mask_char,
-                select,
-            } = &widget.widget_type
-            {
-                if let Some(str_pos) = self.current_pos.within(&widget.pos, widget.length) {
-                    let _ = std::mem::replace(
-                        &mut self.widgets[i],
-                        Widget::new_generic(
-                            widget.pos,
-                            widget.length,
-                            name,
-                            Self::delete_in_string(value, str_pos),
-                            default_value,
-                            allowed_characters.clone(),
-                            *mask_char,
-                            *select,
-                        ),
-                    );
+        self.inputs
+            .iter_mut()
+            .find(|i| i.has_focus(self.current_pos))
+            .map(|i| {
+                if let Some(str_pos) = self.current_pos.within(i.pos, i.length) {
+                    i.value = Self::delete_in_string(&i.value, str_pos);
                 }
-            }
-        }
+            });
         Ok(())
     }
 
     pub(crate) fn find_next_input(&mut self) -> Option<Pos> {
-        let mut widgets = self.widgets.clone();
-        widgets.sort();
+        let mut inputs = self.inputs.clone();
+        inputs.sort();
 
-        let mut i = widgets.iter().filter(|w| w.is_input());
+        let mut i = inputs.iter();
         let mut first_pos = None;
 
         loop {
             // Return None if no input fields
-            let Some(widget) = i.next() else {
+            let Some(input) = i.next() else {
                 return first_pos;
             };
 
             // Set first pos if none set
             if first_pos.is_none() {
-                first_pos = Some(widget.pos);
+                first_pos = Some(input.pos);
             }
 
-            match self.current_pos.cmp(&widget.pos) {
-                // Current pos is before the widget pos
+            match self.current_pos.cmp(&input.pos) {
+                // Current pos is before the input pos
                 Ordering::Less => {
-                    return Some(widget.pos);
+                    return Some(input.pos);
                 }
 
                 // We are on the first character if an input field
@@ -355,21 +266,21 @@ impl Form {
     }
 
     pub(crate) fn find_prev_input(&mut self) -> Option<Pos> {
-        let mut widgets = self.widgets.clone();
-        widgets.sort();
+        let mut inputs = self.inputs.clone();
+        inputs.sort();
 
-        let mut i = widgets.iter().filter(|w| w.is_input()).rev();
+        let mut i = inputs.iter().rev();
 
         loop {
             // Return None if no input fields
-            let Some(widget) = i.next() else {
-                return widgets.last().map(|w| w.pos);
+            let Some(input) = i.next() else {
+                return inputs.last().map(|w| w.pos);
             };
 
-            match self.current_pos.cmp(&widget.pos) {
-                // Current pos is before the widget pos
+            match self.current_pos.cmp(&input.pos) {
+                // Current pos is before the input pos
                 Ordering::Greater => {
-                    return Some(widget.pos);
+                    return Some(input.pos);
                 }
 
                 // We are on the first character if an input field
@@ -380,11 +291,7 @@ impl Form {
                         return Some(next.pos);
                     } else {
                         // No next field, wrap around to first_pos
-                        return widgets
-                            .iter()
-                            .filter(|w| w.is_input())
-                            .map(|w| w.pos)
-                            .last();
+                        return inputs.iter().map(|w| w.pos).last();
                     }
                 }
                 _ => (),
@@ -426,13 +333,17 @@ fn set_char_in_string(s: &str, pos: usize, ch: char) -> String {
 impl Form {
     #[allow(dead_code)]
     pub fn add_text(mut self, pos: impl Into<Pos>, text: impl Into<String>) -> Self {
-        self.widgets.push(Widget::new_label(pos, text));
+        self.labels.push(Label::new_label(pos, text));
 
         self
     }
 
-    pub(crate) fn add_widget(&mut self, widget: Widget) {
-        self.widgets.push(widget);
+    pub(crate) fn add_label(&mut self, label: Label) {
+        self.labels.push(label);
+    }
+
+    pub(crate) fn add_input(&mut self, input: Input) {
+        self.inputs.push(input);
     }
 
     pub fn place_cursor(mut self) -> Self {
@@ -443,27 +354,20 @@ impl Form {
 
     #[allow(dead_code)]
     fn get_input(&self, field_name: &'static str) -> Option<String> {
-        self.widgets
-            .iter()
-            .find_map(|widget| match &widget.widget_type {
-                WidgetType::Generic { name, value, .. } => {
-                    if name == field_name {
-                        Some(value.to_string())
-                    } else {
-                        None
-                    }
-                }
-                _ => None,
-            })
+        self.inputs.iter().find_map(|input| {
+            if input.name == field_name {
+                Some(input.value.to_string())
+            } else {
+                None
+            }
+        })
     }
 
     pub fn get_field_and_data(&self) -> Vec<(&str, &str)> {
         let mut output = Vec::new();
 
-        for widget in &self.widgets {
-            if let WidgetType::Generic { name, value, .. } = &widget.widget_type {
-                output.push((name.as_str(), value.as_str()));
-            }
+        for input in &self.inputs {
+            output.push((input.name.as_str(), input.value.as_str()));
         }
 
         output

@@ -1,6 +1,7 @@
 use crate::{
     form::Form,
-    widget::{Select, Widget},
+    input::{Input, Select},
+    label::Label,
 };
 use nom::{
     branch::alt,
@@ -23,7 +24,7 @@ fn parse_label(input: &str) -> IResult<&str, Widget> {
     let (rest, (_, x, _, y, _)) =
         tuple((tag("LABEL "), u16, multispace1, u16, multispace1))(input)?;
 
-    Ok(("", Widget::new_label((x, y), rest)))
+    Ok(("", Widget::Label(Label::new_label((x, y), rest))))
 }
 
 fn parse_input(input: &str) -> IResult<&str, Widget> {
@@ -45,7 +46,7 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
     match widget_type {
         "INPUT" => Ok((
             "",
-            Widget::new_generic(
+            Widget::Input(Input::new_generic(
                 (x, y),
                 length,
                 name,
@@ -53,12 +54,12 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
                 "",
                 None::<Vec<char>>,
                 None,
-                Select::None,
-            ),
+                Select::SingleSelect,
+            )),
         )),
         "PASSWORD" => Ok((
             "",
-            Widget::new_generic(
+            Widget::Input(Input::new_generic(
                 (x, y),
                 length,
                 name,
@@ -67,7 +68,7 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
                 None::<Vec<char>>,
                 Some('*'),
                 Select::None,
-            ),
+            )),
         )),
         _ => unimplemented!(),
     }
@@ -106,7 +107,7 @@ fn parse_number(input: &str) -> IResult<&str, Widget> {
     match widget_type {
         "NUMBER" => Ok((
             "",
-            Widget::new_generic(
+            Widget::Input(Input::new_generic(
                 (x, y),
                 length,
                 name,
@@ -115,13 +116,18 @@ fn parse_number(input: &str) -> IResult<&str, Widget> {
                 Some(('0'..='9').collect::<Vec<char>>()),
                 None,
                 Select::None,
-            ),
+            )),
         )),
         _ => unimplemented!(),
     }
 }
 
-pub fn parse_widget(input: &str) -> Result<Widget, String> {
+enum Widget {
+    Label(Label),
+    Input(Input),
+}
+
+fn parse_widget(input: &str) -> Result<Widget, String> {
     let (_, widget) =
         alt((parse_label, parse_input, parse_number))(input).map_err(|e| e.to_string())?;
 
@@ -131,7 +137,10 @@ pub fn parse_widget(input: &str) -> Result<Widget, String> {
 pub fn parse_str(form: &mut Form, input: &str) -> Result<(), String> {
     let widget = parse_widget(input)?;
 
-    form.add_widget(widget);
+    match widget {
+        Widget::Label(l) => form.add_label(l),
+        Widget::Input(i) => form.add_input(i),
+    }
 
     Ok(())
 }
