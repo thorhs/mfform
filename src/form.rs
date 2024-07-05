@@ -94,16 +94,33 @@ fn display_generic(stdout: &mut Stdout, pos: Pos, widget: &WidgetType) -> io::Re
         default_value,
         allowed_characters: _,
         mask_char,
+        select,
     } = widget
     else {
         unimplemented!();
     };
 
     if let Some(mask_char) = mask_char {
-        display_password(stdout, pos, value, *length, *mask_char)
+        display_password(stdout, pos, value, *length, *mask_char)?;
     } else {
-        display_string(stdout, pos, value, default_value, *length)
+        display_string(stdout, pos, value, default_value, *length)?;
     }
+
+    if *select == crate::widget::Select::None {
+        stdout
+            .queue(cursor::MoveTo(82 - 6 - 10, 24))?
+            .queue(style::SetForegroundColor(style::Color::DarkGreen))?
+            .queue(style::Print(" F4 - Select "))?;
+        /*
+        } else {
+            stdout
+                .queue(cursor::MoveTo(82 - 3 - 10, 24))?
+                .queue(style::SetForegroundColor(style::Color::DarkGreen))?
+                .queue(style::Print("             "))?;
+        */
+    };
+
+    Ok(())
 }
 
 impl Form {
@@ -182,6 +199,7 @@ impl Form {
                     default_value,
                     allowed_characters,
                     mask_char,
+                    select,
                 } => {
                     if let Some(str_pos) = self.current_pos.within(&widget.pos, *length) {
                         if let Some(ac) = allowed_characters {
@@ -202,6 +220,7 @@ impl Form {
                                 default_value,
                                 allowed_characters.clone(),
                                 *mask_char,
+                                *select,
                             ),
                         );
                     }
@@ -231,6 +250,7 @@ impl Form {
                 default_value,
                 allowed_characters,
                 mask_char,
+                select,
             } = &widget.widget_type
             {
                 if let Some(str_pos) = self.current_pos.within(&widget.pos, *length) {
@@ -252,6 +272,7 @@ impl Form {
                             default_value,
                             allowed_characters.clone(),
                             *mask_char,
+                            *select,
                         ),
                     );
                 }
@@ -269,6 +290,7 @@ impl Form {
                 default_value,
                 allowed_characters,
                 mask_char,
+                select,
             } = &widget.widget_type
             {
                 if let Some(str_pos) = self.current_pos.within(&widget.pos, *length) {
@@ -282,6 +304,7 @@ impl Form {
                             default_value,
                             allowed_characters.clone(),
                             *mask_char,
+                            *select,
                         ),
                     );
                 }

@@ -1,5 +1,12 @@
 use crate::pos::Pos;
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Select {
+    None,
+    SingleSelect,
+    MultiSelect,
+}
+
 #[derive(Debug, Clone, Eq)]
 pub struct Widget {
     pub pos: Pos,
@@ -18,6 +25,7 @@ pub enum WidgetType {
         default_value: String,
         allowed_characters: Option<Vec<char>>,
         mask_char: Option<char>,
+        select: Select,
     },
 }
 
@@ -59,6 +67,7 @@ impl Widget {
         default_value: impl Into<String>,
         allowed_characters: Option<impl Into<Vec<char>>>,
         mask_char: Option<char>,
+        select: Select,
     ) -> Self {
         Self {
             pos: pos.into(),
@@ -69,6 +78,7 @@ impl Widget {
                 default_value: default_value.into(),
                 allowed_characters: allowed_characters.map(|a| a.into()),
                 mask_char,
+                select,
             },
         }
     }

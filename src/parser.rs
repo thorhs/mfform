@@ -1,6 +1,6 @@
 use crate::{
     form::Form,
-    widget::{Widget, WidgetType},
+    widget::{Select, Widget, WidgetType},
 };
 use nom::{
     branch::alt,
@@ -53,31 +53,54 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
     match widget_type {
         "INPUT" => Ok((
             "",
-            Widget {
-                pos: (x, y).into(),
-                widget_type: WidgetType::Generic {
-                    length,
-                    name: name.to_string(),
-                    value: rest.to_string(),
-                    default_value: rest.to_string(),
-                    allowed_characters: None,
-                    mask_char: None,
+            Widget::new_generic(
+                (x, y),
+                length,
+                name,
+                rest,
+                "",
+                None::<Vec<char>>,
+                None,
+                Select::None,
+            ),
+            /*
+                Widget {
+                    pos: (x, y).into(),
+                    widget_type: WidgetType::Generic {
+                        length,
+                        name: name.to_string(),
+                        value: rest.to_string(),
+                        default_value: rest.to_string(),
+                        allowed_characters: None,
+                        mask_char: None,
+                    },
                 },
-            },
+            */
         )),
         "PASSWORD" => Ok((
             "",
-            Widget {
-                pos: (x, y).into(),
-                widget_type: WidgetType::Generic {
-                    length,
-                    name: name.to_string(),
-                    value: rest.to_string(),
-                    default_value: "".to_string(),
-                    allowed_characters: None,
-                    mask_char: Some('X'),
-                },
-            },
+            Widget::new_generic(
+                (x, y),
+                length,
+                name,
+                rest,
+                "",
+                None::<Vec<char>>,
+                Some('*'),
+                Select::None,
+            ), /*
+               Widget {
+                   pos: (x, y).into(),
+                   widget_type: WidgetType::Generic {
+                       length,
+                       name: name.to_string(),
+                       value: rest.to_string(),
+                       default_value: "".to_string(),
+                       allowed_characters: None,
+                       mask_char: Some('X'),
+                   },
+               },
+                   */
         )),
         _ => unimplemented!(),
     }
@@ -116,6 +139,17 @@ fn parse_number(input: &str) -> IResult<&str, Widget> {
     match widget_type {
         "NUMBER" => Ok((
             "",
+            Widget::new_generic(
+                (x, y),
+                length,
+                name,
+                &default_value,
+                &default_value,
+                Some(('0'..='9').collect::<Vec<char>>()),
+                None,
+                Select::None,
+            ),
+            /*
             Widget {
                 pos: (x, y).into(),
                 widget_type: WidgetType::Generic {
@@ -127,6 +161,7 @@ fn parse_number(input: &str) -> IResult<&str, Widget> {
                     mask_char: None,
                 },
             },
+            */
         )),
         _ => unimplemented!(),
     }
@@ -178,6 +213,7 @@ mod tests {
                 default_value: "texti hér".to_string(),
                 allowed_characters: None,
                 mask_char: None,
+                select: Select::None,
             }
         );
     }
