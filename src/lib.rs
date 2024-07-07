@@ -5,6 +5,7 @@ mod input;
 mod label;
 mod parser;
 mod pos;
+mod select_form;
 mod vec_appender;
 
 pub use app::App;

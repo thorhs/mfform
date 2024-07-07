@@ -7,3 +7,6 @@ INPUT    18 2 8 username
 PASSWORD 18 4 8 password
 NUMBER   18 6 8 number
 INPUT    18 8 8 default awesome!
+
+SELECT username id1 First!
+SELECT username id2 Second

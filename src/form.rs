@@ -1,4 +1,11 @@
-use crossterm::{cursor, event::KeyCode, style, QueueableCommand};
+use crossterm::{
+    cursor,
+    event::KeyCode,
+    style,
+    terminal::{self, ClearType},
+    QueueableCommand,
+};
+use log::debug;
 use std::{
     cmp::Ordering,
     io::{self, Stdout, Write},
@@ -8,6 +15,7 @@ use crate::{
     input::{Input, Select},
     label::Label,
     pos::Pos,
+    select_form::SelectForm,
 };
 
 #[derive(Debug, Clone)]
@@ -95,6 +103,11 @@ fn display_generic(stdout: &mut Stdout, input: &Input) -> io::Result<()> {
 
 impl Form {
     pub fn display(&mut self, stdout: &mut Stdout) -> io::Result<()> {
+        // Clear dialog
+        stdout
+            .queue(cursor::MoveTo(self.size.x, self.size.y))?
+            .queue(terminal::Clear(ClearType::FromCursorUp))?;
+
         // Border
         stdout.queue(style::SetForegroundColor(style::Color::DarkGreen))?;
         for y in 0..24 {
@@ -310,6 +323,31 @@ impl Form {
             self.current_pos = pos;
         }
     }
+
+    fn current_field(&mut self) -> Option<&mut Input> {
+        self.inputs
+            .iter_mut()
+            .find(|f| f.has_focus(self.current_pos))
+    }
+
+    pub fn select_popup(&mut self) -> io::Result<()> {
+        let Some(current_field) = self.current_field() else {
+            return Ok(());
+        };
+
+        match current_field.select {
+            Select::SingleSelect => {
+                debug!("Popup dialog for input {}", current_field.name);
+                let mut form = SelectForm::new(&current_field.select_static, (80, 24))?;
+
+                form.display(&mut std::io::stdout())?;
+            }
+            Select::MultiSelect => unimplemented!("MultiSelect is not yet implemented"),
+            Select::None => (),
+        }
+
+        Ok(())
+    }
 }
 
 fn set_char_in_string(s: &str, pos: usize, ch: char) -> String {
@@ -344,6 +382,21 @@ impl Form {
 
     pub(crate) fn add_input(&mut self, input: Input) {
         self.inputs.push(input);
+    }
+
+    pub(crate) fn add_select(&mut self, input: String, id: String, value: String) {
+        let input = self.inputs.iter_mut().find(|i| i.name == input);
+
+        if let Some(input) = input {
+            if input.select == Select::None {
+                input.select = Select::SingleSelect;
+            }
+
+            input.select_static.push((id, value));
+            debug!("List: {:?}", input.select_static);
+        } else {
+            panic!("Input not found");
+        }
     }
 
     pub fn place_cursor(mut self) -> Self {

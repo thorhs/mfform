@@ -183,6 +183,9 @@ impl App {
             Event::Key(k) if k.code == KeyCode::Delete => {
                 form.key_delete()?;
             }
+            Event::Key(k) if k.code == KeyCode::F(4) => {
+                form.select_popup()?;
+            }
             Event::Key(k)
                 if k.code == KeyCode::Char('d') && k.modifiers.contains(KeyModifiers::CONTROL) =>
             {

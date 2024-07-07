@@ -3,7 +3,8 @@ use std::fmt::Debug;
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex, RwLock};
 
-use crossterm::{cursor, style, QueueableCommand};
+use crossterm::terminal::ClearType;
+use crossterm::{cursor, style, terminal, tty, QueueableCommand};
 
 use log4rs::append::Append;
 
@@ -33,7 +34,8 @@ impl Appender {
         for (i, line) in buffer.iter().rev().enumerate() {
             stdout
                 .queue(cursor::MoveTo(self.start.x, self.start.y + 1 + i as u16))?
-                .queue(style::Print(line))?;
+                .queue(style::Print(line))?
+                .queue(terminal::Clear(ClearType::UntilNewLine))?;
         }
 
         stdout.flush()

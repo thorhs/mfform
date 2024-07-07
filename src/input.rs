@@ -17,6 +17,7 @@ pub struct Input {
     pub allowed_characters: Option<Vec<char>>,
     pub mask_char: Option<char>,
     pub select: Select,
+    pub select_static: Vec<(String, String)>,
 }
 
 impl Ord for Input {
@@ -38,8 +39,8 @@ impl PartialOrd for Input {
 }
 
 impl Input {
-    pub fn has_focus(&self, other: Pos) -> bool {
-        other.within(self.pos, self.length).is_some()
+    pub fn has_focus(&self, cursor: Pos) -> bool {
+        cursor.within(self.pos, self.length).is_some()
     }
 
     pub fn new_generic(
@@ -61,6 +62,7 @@ impl Input {
             allowed_characters: allowed_characters.map(|a| a.into()),
             mask_char,
             select,
+            select_static: Default::default(),
         }
     }
 }

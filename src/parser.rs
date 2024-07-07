@@ -54,7 +54,7 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
                 "",
                 None::<Vec<char>>,
                 None,
-                Select::SingleSelect,
+                Select::None,
             )),
         )),
         "PASSWORD" => Ok((
@@ -72,6 +72,24 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
         )),
         _ => unimplemented!(),
     }
+}
+
+fn parse_select(input: &str) -> IResult<&str, Widget> {
+    // SELECT input id display
+
+    let (rest, (_widget_type, _, input, _, id, _)) = tuple((
+        tag("SELECT"),
+        multispace1,
+        identifier,
+        multispace1,
+        identifier,
+        multispace1,
+    ))(input)?;
+
+    Ok((
+        "",
+        Widget::Select(input.to_string(), id.to_string(), rest.to_string()),
+    ))
 }
 
 fn parse_number(input: &str) -> IResult<&str, Widget> {
@@ -125,11 +143,12 @@ fn parse_number(input: &str) -> IResult<&str, Widget> {
 enum Widget {
     Label(Label),
     Input(Input),
+    Select(String, String, String),
 }
 
 fn parse_widget(input: &str) -> Result<Widget, String> {
-    let (_, widget) =
-        alt((parse_label, parse_input, parse_number))(input).map_err(|e| e.to_string())?;
+    let (_, widget) = alt((parse_label, parse_input, parse_number, parse_select))(input)
+        .map_err(|e| e.to_string())?;
 
     Ok(widget)
 }
@@ -140,6 +159,7 @@ pub fn parse_str(form: &mut Form, input: &str) -> Result<(), String> {
     match widget {
         Widget::Label(l) => form.add_label(l),
         Widget::Input(i) => form.add_input(i),
+        Widget::Select(input, id, text) => form.add_select(input, id, text),
     }
 
     Ok(())
@@ -151,33 +171,39 @@ mod tests {
 
     #[test]
     fn test_parse_label() {
-        let widget = parse_widget("LABEL 1 2 texti hér").unwrap();
+        let Widget::Label(label) = parse_widget("LABEL 1 2 texti hér").unwrap() else {
+            panic!("Parsed value is not a label");
+        };
 
-        assert_eq!(widget.pos, (1, 2).into());
-        assert_eq!(
-            widget.widget_type,
-            WidgetType::Text {
-                value: "texti hér".to_string()
-            }
-        );
+        assert_eq!(label.pos, (1, 2).into());
+        assert_eq!(label.text, "texti hér");
     }
 
     #[test]
     fn test_parse_input() {
-        let widget = parse_widget("INPUT 5 111 10 nafn texti hér").unwrap();
+        let Widget::Input(input) = parse_widget("INPUT 5 111 10 nafn texti hér").unwrap() else {
+            panic!("Parsed value is not an input");
+        };
 
-        assert_eq!(widget.pos, (5, 111).into());
-        assert_eq!(
-            widget.widget_type,
-            WidgetType::Generic {
-                length: 10,
-                name: "nafn".to_string(),
-                value: "texti hér".to_string(),
-                default_value: "texti hér".to_string(),
-                allowed_characters: None,
-                mask_char: None,
-                select: Select::None,
-            }
-        );
+        assert_eq!(input.pos, (5, 111).into());
+        assert_eq!(input.length, 10);
+        assert_eq!(input.name, "nafn".to_string());
+        assert_eq!(input.value, "texti hér".to_string());
+        assert_eq!(input.default_value, "".to_string());
+        assert_eq!(input.allowed_characters, None);
+        assert_eq!(input.mask_char, None);
+        assert_eq!(input.select, Select::None);
+    }
+
+    #[test]
+    fn test_parse_select() {
+        let Widget::Select(input, id, value) = parse_widget("SELECT inp id langur texti").unwrap()
+        else {
+            panic!("Parsed value is not a select");
+        };
+
+        assert_eq!(input, "inp".to_string());
+        assert_eq!(id, "id".to_string());
+        assert_eq!(value, "langur texti".to_string());
     }
 }

@@ -1,18 +1,18 @@
 use std::iter::empty;
 
-use crate::widget::Widget;
-
-use super::*;
+use crate::form::Form;
+use crate::input::{Input, Select};
+use crate::label::Label;
 
 #[test]
 fn find_next() {
     log4rs_test_utils::test_logging::init_logging_once_for(empty(), None, None);
 
-    let mut form = Form::new((80, 24))
-        .unwrap()
-        .add_text((0, 0), "Hello world")
-        .add_text((10, 5), "YoYo");
-    form.add_widget(Widget::new_generic(
+    let mut form = Form::new((80, 24)).unwrap();
+    form.add_label(Label::new_label((0, 0), "Hello world"));
+    form.add_label(Label::new_label((10, 5), "YoYo"));
+
+    form.add_input(Input::new_generic(
         (12, 0),
         10,
         "hello",
@@ -20,8 +20,9 @@ fn find_next() {
         "",
         None::<Vec<_>>,
         None,
+        Select::None,
     ));
-    form.add_widget(Widget::new_generic(
+    form.add_input(Input::new_generic(
         (12, 2),
         10,
         "hello2",
@@ -29,8 +30,9 @@ fn find_next() {
         "",
         None::<Vec<_>>,
         None,
+        Select::None,
     ));
-    form.add_widget(Widget::new_generic(
+    form.add_input(Input::new_generic(
         (25, 0),
         10,
         "hello3",
@@ -38,6 +40,7 @@ fn find_next() {
         "",
         None::<Vec<_>>,
         None,
+        Select::None,
     ));
 
     // Before first field
