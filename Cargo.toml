@@ -3,6 +3,12 @@ name = "mfform"
 version = "0.1.0"
 edition = "2021"
 
+description = "A simple input form simulating mainframe input forms, think 3270."
+license = "MIT"
+documentation = "https://docs.rs/mfform"
+homepage = "https://github.com/thorhs/mfform"
+repository = "https://github.com/thorhs/mfform"
+
 [lib]
 name = "mfform"
 path = "src/lib.rs"
