@@ -29,7 +29,7 @@ impl Label {
         let text: String = text.into();
         Self {
             pos: pos.into(),
-            text: text.into(),
+            text,
         }
     }
 }

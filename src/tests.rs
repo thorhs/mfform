@@ -1,7 +1,7 @@
 use std::iter::empty;
 
 use crate::form::Form;
-use crate::input::{Input, Select};
+use crate::input::Input;
 use crate::label::Label;
 
 #[test]
@@ -12,36 +12,21 @@ fn find_next() {
     form.add_label(Label::new_label((0, 0), "Hello world"));
     form.add_label(Label::new_label((10, 5), "YoYo"));
 
-    form.add_input(Input::new_generic(
-        (12, 0),
-        10,
-        "hello",
-        "hello",
-        "",
-        None::<Vec<_>>,
-        None,
-        Select::None,
-    ));
-    form.add_input(Input::new_generic(
-        (12, 2),
-        10,
-        "hello2",
-        "hello2",
-        "",
-        None::<Vec<_>>,
-        None,
-        Select::None,
-    ));
-    form.add_input(Input::new_generic(
-        (25, 0),
-        10,
-        "hello3",
-        "hello3",
-        "",
-        None::<Vec<_>>,
-        None,
-        Select::None,
-    ));
+    form.add_input(
+        Input::builder((12, 0), 10, "hello")
+            .with_value("hello")
+            .build(),
+    );
+    form.add_input(
+        Input::builder((12, 2), 10, "hello2")
+            .with_value("hello2")
+            .build(),
+    );
+    form.add_input(
+        Input::builder((25, 0), 10, "hello3")
+            .with_value("hello3")
+            .build(),
+    );
 
     // Before first field
     form.current_pos = (0, 0).into();
@@ -94,18 +79,18 @@ fn find_next() {
 fn delete() {
     let input = "12345678901";
 
-    let output = Form::delete_in_string(input, 1);
+    let output = Input::delete_in_string(input, 1);
     assert_eq!(output, "1345678901");
 
-    let output = Form::delete_in_string(input, 0);
+    let output = Input::delete_in_string(input, 0);
     assert_eq!(output, "2345678901");
 
-    let output = Form::delete_in_string(input, 10);
+    let output = Input::delete_in_string(input, 10);
     assert_eq!(output, "1234567890");
 
-    let output = Form::delete_in_string(input, 11);
+    let output = Input::delete_in_string(input, 11);
     assert_eq!(output, "12345678901", "Delete after input string");
 
-    let output = Form::delete_in_string(input, 7);
+    let output = Input::delete_in_string(input, 7);
     assert_eq!(output, "1234567901");
 }

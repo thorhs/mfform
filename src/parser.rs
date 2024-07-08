@@ -1,8 +1,4 @@
-use crate::{
-    form::Form,
-    input::{Input, Select},
-    label::Label,
-};
+use crate::{form::Form, input::Input, label::Label};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -46,29 +42,20 @@ fn parse_input(input: &str) -> IResult<&str, Widget> {
     match widget_type {
         "INPUT" => Ok((
             "",
-            Widget::Input(Input::new_generic(
-                (x, y),
-                length,
-                name,
-                rest,
-                "",
-                None::<Vec<char>>,
-                None,
-                Select::None,
-            )),
+            Widget::Input(
+                Input::builder((x, y), length, name)
+                    .with_value(rest)
+                    .build(),
+            ),
         )),
         "PASSWORD" => Ok((
             "",
-            Widget::Input(Input::new_generic(
-                (x, y),
-                length,
-                name,
-                rest,
-                "",
-                None::<Vec<char>>,
-                Some('*'),
-                Select::None,
-            )),
+            Widget::Input(
+                Input::builder((x, y), length, name)
+                    .with_value(rest)
+                    .with_mask_char('*')
+                    .build(),
+            ),
         )),
         _ => unimplemented!(),
     }
@@ -125,16 +112,13 @@ fn parse_number(input: &str) -> IResult<&str, Widget> {
     match widget_type {
         "NUMBER" => Ok((
             "",
-            Widget::Input(Input::new_generic(
-                (x, y),
-                length,
-                name,
-                &default_value,
-                &default_value,
-                Some(('0'..='9').collect::<Vec<char>>()),
-                None,
-                Select::None,
-            )),
+            Widget::Input(
+                Input::builder((x, y), length, name)
+                    .with_value(&default_value)
+                    .with_default_value(default_value)
+                    .with_allowed_characters('0'..='9')
+                    .build(),
+            ),
         )),
         _ => unimplemented!(),
     }
@@ -168,6 +152,7 @@ pub fn parse_str(form: &mut Form, input: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::input::Select;
 
     #[test]
     fn test_parse_label() {

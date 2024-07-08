@@ -10,3 +10,5 @@ INPUT    18 8 8 default awesome!
 
 SELECT username id1 First!
 SELECT username id2 Second
+SELECT username id3 Third
+SELECT username id4 Fourth

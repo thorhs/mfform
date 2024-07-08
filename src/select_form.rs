@@ -1,27 +1,21 @@
 use crossterm::{
     cursor,
-    event::KeyCode,
+    event::{Event, KeyCode},
     style,
     terminal::{self, ClearType},
     QueueableCommand,
 };
 use log::debug;
-use std::{
-    cmp::Ordering,
-    io::{self, Stdout, Write},
+use std::io::{self, Stdout, Write};
+
+use crate::{
+    app::{EventHandlerResult, EventResult},
+    input::Select,
+    pos::Pos,
 };
 
-use crate::pos::Pos;
-
 #[derive(Debug, Clone)]
-enum Choice {
-    None,
-    Select,
-    Exclude,
-}
-
-#[derive(Debug, Clone)]
-struct Item {
+pub(crate) struct Item {
     choice: char,
     id: String,
     text: String,
@@ -37,19 +31,27 @@ impl From<&(String, String)> for Item {
     }
 }
 
+static FIRST_FIELD_POS: Pos = Pos { x: 20, y: 5 };
+
 #[derive(Debug, Clone)]
 pub struct SelectForm {
     pub(crate) items: Vec<Item>,
     pub(crate) current_pos: Pos,
     pub(crate) size: Pos,
+    pub(crate) select_type: Select,
 }
 
 impl SelectForm {
-    pub fn new(items: &[(String, String)], size: impl Into<Pos>) -> io::Result<Self> {
+    pub fn new(
+        items: &[(String, String)],
+        size: impl Into<Pos>,
+        select_type: Select,
+    ) -> io::Result<Self> {
         Ok(Self {
-            items: items.iter().map(|i| Item::from(i)).collect(),
-            current_pos: (0, 0).into(),
+            items: items.iter().map(Item::from).collect(),
+            current_pos: FIRST_FIELD_POS,
             size: size.into(),
+            select_type,
         })
     }
 
@@ -100,9 +102,62 @@ impl SelectForm {
 
         stdout.flush()
     }
+
+    pub(crate) fn get_selection(&self) -> Vec<String> {
+        self.items
+            .iter()
+            .filter(|i| i.choice == 's')
+            .map(|i| i.id.to_string())
+            .collect()
+    }
 }
 
 impl SelectForm {
+    pub fn event_handler(&mut self, event: &Event) -> io::Result<EventHandlerResult> {
+        match event {
+            Event::Key(k) if k.code == KeyCode::Esc => {
+                return Ok(EventHandlerResult::Handled(EventResult::Abort));
+            }
+            Event::Key(k) if k.code == KeyCode::Enter => {
+                return Ok(EventHandlerResult::Handled(EventResult::Submit));
+            }
+            Event::Key(k) if k.code == KeyCode::Left => {
+                self.move_event(k.code);
+            }
+            Event::Key(k) if k.code == KeyCode::Right => {
+                self.move_event(k.code);
+            }
+            Event::Key(k) if k.code == KeyCode::Up => {
+                self.move_event(k.code);
+            }
+            Event::Key(k) if k.code == KeyCode::Down => {
+                self.move_event(k.code);
+            }
+            Event::Key(k) if k.code == KeyCode::Tab => {
+                self.next_input();
+            }
+            Event::Key(k) if k.code == KeyCode::BackTab => {
+                self.prev_input();
+            }
+            Event::Key(k) if k.code == KeyCode::Backspace => {
+                self.key_backspace()?;
+            }
+            Event::Key(k) if k.code == KeyCode::Delete => {
+                self.key_delete()?;
+            }
+            Event::Key(k) if k.modifiers.is_empty() => {
+                if let KeyCode::Char(c) = k.code {
+                    self.key(c);
+                } else {
+                    return Ok(EventHandlerResult::NotHandled);
+                }
+            }
+            _ => return Ok(EventHandlerResult::NotHandled),
+        }
+
+        Ok(EventHandlerResult::Handled(EventResult::None))
+    }
+
     pub fn move_event(&mut self, code: KeyCode) {
         self.current_pos = match code {
             KeyCode::Left => Pos {
@@ -146,7 +201,9 @@ impl SelectForm {
             return;
         }
 
-        self.items.get_mut(choice as usize).map(|c| c.choice = key);
+        if let Some(c) = self.items.get_mut(choice as usize) {
+            c.choice = key;
+        }
     }
 
     pub fn key_backspace(&mut self) -> io::Result<()> {
@@ -160,24 +217,62 @@ impl SelectForm {
     }
 
     pub(crate) fn find_next_input(&mut self) -> Option<Pos> {
-        let flattened = self.current_pos.y * 82 + self.current_pos.x;
-        let flattened = flattened - (82 * 7) - 19;
-        let choice = flattened / 82;
-        if choice > self.items.len() as u16 {
-            return Some((20, 5).into());
+        fn pos_to_flat(size: Pos, pos: Pos) -> u16 {
+            (size.x * pos.y) + pos.x
+        }
+
+        let first_field = pos_to_flat(self.size, FIRST_FIELD_POS);
+        let current_pos = pos_to_flat(self.size, self.current_pos);
+
+        if current_pos < first_field {
+            return Some(FIRST_FIELD_POS);
+        }
+
+        let difference = current_pos - first_field;
+
+        let diff_and_some = difference + (self.size.x * 2);
+
+        let choice = diff_and_some / self.size.x / 2;
+
+        if choice >= self.items.len() as u16 {
+            Some(FIRST_FIELD_POS)
         } else {
-            return None; // TODO
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + (2 * (choice)),
+            })
         }
     }
 
     pub(crate) fn find_prev_input(&mut self) -> Option<Pos> {
-        let flattened = self.current_pos.y * 82 + self.current_pos.x;
-        let flattened = flattened - (82 * 7) - 19;
-        let choice = flattened / 82;
-        if choice > self.items.len() as u16 {
-            return Some((20, 5).into());
+        fn pos_to_flat(size: Pos, pos: Pos) -> u16 {
+            (size.x * pos.y) + pos.x
+        }
+
+        let first_field = pos_to_flat(self.size, FIRST_FIELD_POS);
+        let current_pos = pos_to_flat(self.size, self.current_pos);
+
+        if current_pos < first_field {
+            return Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + (self.items.len() as u16 * 2) - 2,
+            });
+        }
+
+        let difference = current_pos.wrapping_sub(first_field).wrapping_sub(1);
+
+        let choice = difference / self.size.x / 2;
+
+        if choice >= self.items.len() as u16 {
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + (self.items.len() as u16 * 2) - 2,
+            })
         } else {
-            return None; // TODO
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + (2 * (choice)),
+            })
         }
     }
 
@@ -196,5 +291,381 @@ impl SelectForm {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::input::Select;
+    use crate::pos::Pos;
+
+    use super::{SelectForm, FIRST_FIELD_POS};
+
+    #[test]
+    fn test_next_before_first() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = (0, 0).into();
+
+        assert_eq!(form.find_next_input(), Some(FIRST_FIELD_POS));
+    }
+
+    #[test]
+    fn test_next_first() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = FIRST_FIELD_POS;
+
+        assert_eq!(
+            form.find_next_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + 2
+            })
+        );
+    }
+
+    #[test]
+    fn test_next_second() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = Pos {
+            x: FIRST_FIELD_POS.x,
+            y: FIRST_FIELD_POS.y + 2,
+        };
+
+        assert_eq!(
+            form.find_next_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + 4
+            })
+        );
+    }
+
+    #[test]
+    fn test_next_between_second_and_third() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = Pos {
+            x: FIRST_FIELD_POS.x + 3,
+            y: FIRST_FIELD_POS.y + 3,
+        };
+
+        assert_eq!(
+            form.find_next_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + 4
+            })
+        );
+    }
+
+    #[test]
+    fn test_next_third() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = Pos {
+            x: FIRST_FIELD_POS.x,
+            y: FIRST_FIELD_POS.y + 2,
+        };
+
+        assert_eq!(
+            form.find_next_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + 4
+            })
+        );
+    }
+
+    #[test]
+    fn test_next_last() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = Pos {
+            x: FIRST_FIELD_POS.x,
+            y: FIRST_FIELD_POS.y + 6,
+        };
+
+        assert_eq!(
+            form.find_next_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y
+            })
+        );
+    }
+
+    #[test]
+    fn test_next_after_last() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = Pos {
+            x: FIRST_FIELD_POS.x,
+            y: FIRST_FIELD_POS.y + 9,
+        };
+
+        assert_eq!(
+            form.find_next_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y
+            })
+        );
+    }
+
+    #[test]
+    fn test_prev_before_first() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = (0, 0).into();
+
+        assert_eq!(
+            form.find_prev_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + 6
+            })
+        );
+    }
+
+    #[test]
+    fn test_prev_first() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = FIRST_FIELD_POS;
+
+        assert_eq!(
+            form.find_prev_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + 6
+            })
+        );
+    }
+
+    #[test]
+    fn test_prev_second() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = Pos {
+            x: FIRST_FIELD_POS.x,
+            y: FIRST_FIELD_POS.y + 2,
+        };
+
+        assert_eq!(
+            form.find_prev_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y
+            })
+        );
+    }
+
+    #[test]
+    fn test_prev_between_second_and_third() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = Pos {
+            x: FIRST_FIELD_POS.x + 2,
+            y: FIRST_FIELD_POS.y + 3,
+        };
+
+        assert_eq!(
+            form.find_prev_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + 2
+            })
+        );
+    }
+
+    #[test]
+    fn test_prev_third() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = Pos {
+            x: FIRST_FIELD_POS.x,
+            y: FIRST_FIELD_POS.y + 4,
+        };
+
+        assert_eq!(
+            form.find_prev_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + 2
+            })
+        );
+    }
+
+    #[test]
+    fn test_prev_last() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = Pos {
+            x: FIRST_FIELD_POS.x,
+            y: FIRST_FIELD_POS.y + 6,
+        };
+
+        assert_eq!(
+            form.find_prev_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + 4
+            })
+        );
+    }
+
+    #[test]
+    fn test_prev_after_last() {
+        let mut form = SelectForm::new(
+            &[
+                ("1".to_string(), "item1".to_string()),
+                ("2".to_string(), "item2".to_string()),
+                ("3".to_string(), "item3".to_string()),
+                ("4".to_string(), "item4".to_string()),
+            ],
+            (80, 24),
+            Select::Single,
+        )
+        .unwrap();
+
+        form.current_pos = Pos {
+            x: FIRST_FIELD_POS.x,
+            y: FIRST_FIELD_POS.y + 9,
+        };
+
+        assert_eq!(
+            form.find_prev_input(),
+            Some(Pos {
+                x: FIRST_FIELD_POS.x,
+                y: FIRST_FIELD_POS.y + 6
+            })
+        );
+    }
 }

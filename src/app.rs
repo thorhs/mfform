@@ -4,7 +4,7 @@ use std::{
 };
 
 use crossterm::{
-    event::{self, Event, KeyCode, KeyModifiers},
+    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     terminal::{self, disable_raw_mode, enable_raw_mode},
     ExecutableCommand, QueueableCommand,
 };
@@ -19,6 +19,12 @@ pub enum EventResult {
     Abort,
     ToggleDebug,
     None,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum EventHandlerResult {
+    Handled(EventResult),
+    NotHandled,
 }
 
 pub struct App {
@@ -140,6 +146,7 @@ impl App {
             .build(
                 Root::builder()
                     .appender("log_dialog")
+                    .appender("debug_log")
                     .build(LevelFilter::Trace),
             )
             .unwrap();
@@ -171,51 +178,47 @@ impl App {
             Event::Key(k) if k.code == KeyCode::Down => {
                 form.move_event(k.code);
             }
-            Event::Key(k) if k.code == KeyCode::Tab => {
-                form.next_input();
-            }
-            Event::Key(k) if k.code == KeyCode::BackTab => {
-                form.prev_input();
-            }
-            Event::Key(k) if k.code == KeyCode::Backspace => {
-                form.key_backspace()?;
-            }
-            Event::Key(k) if k.code == KeyCode::Delete => {
-                form.key_delete()?;
-            }
-            Event::Key(k) if k.code == KeyCode::F(4) => {
-                form.select_popup()?;
-            }
             Event::Key(k)
                 if k.code == KeyCode::Char('d') && k.modifiers.contains(KeyModifiers::CONTROL) =>
             {
                 return Ok(EventResult::ToggleDebug);
             }
-
-            Event::Key(k) => {
-                if let KeyCode::Char(c) = k.code {
-                    form.key(c);
-                }
-            }
-            _ => unimplemented!(),
+            _ => (),
         }
 
         Ok(EventResult::None)
     }
 
     pub fn execute(&mut self, form: &mut Form) -> io::Result<EventResult> {
-        let mut result = EventResult::None;
+        let mut output = EventResult::None;
         loop {
             form.display(&mut io::stdout())?;
 
             let ev = event::read()?;
 
+            if let Event::Key(kev) = ev {
+                if kev == KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL) {
+                    return Ok(EventResult::Abort);
+                }
+            }
+
             debug!("Key event: {:?}", ev);
 
-            match self.keyboard_event(form, ev)? {
+            let form_result = form.event_handler(&ev)?;
+
+            // If the event was handled, bubble up the result
+            let result = if let EventHandlerResult::Handled(form_result) = form_result {
+                form_result
+            } else {
+                self.keyboard_event(form, ev)?
+            };
+
+            debug!("Result: {:?}", result);
+
+            match result {
                 EventResult::Abort => break,
                 EventResult::Submit => {
-                    result = EventResult::Submit;
+                    output = EventResult::Submit;
                     break;
                 }
                 EventResult::ToggleDebug => {
@@ -225,7 +228,7 @@ impl App {
             };
         }
 
-        Ok(result)
+        Ok(output)
     }
 }
 

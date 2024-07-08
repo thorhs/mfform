@@ -1,6 +1,6 @@
 use crossterm::{
     cursor,
-    event::KeyCode,
+    event::{Event, KeyCode},
     style,
     terminal::{self, ClearType},
     QueueableCommand,
@@ -12,6 +12,7 @@ use std::{
 };
 
 use crate::{
+    app::{EventHandlerResult, EventResult},
     input::{Input, Select},
     label::Label,
     pos::Pos,
@@ -24,6 +25,7 @@ pub struct Form {
     pub(crate) inputs: Vec<Input>,
     pub(crate) current_pos: Pos,
     pub(crate) size: Pos,
+    pub(crate) select_form: Option<SelectForm>,
 }
 
 impl Form {
@@ -33,6 +35,7 @@ impl Form {
             inputs: Default::default(),
             current_pos: (0, 0).into(),
             size: size.into(),
+            select_form: None,
         })
     }
 }
@@ -101,8 +104,106 @@ fn display_generic(stdout: &mut Stdout, input: &Input) -> io::Result<()> {
     Ok(())
 }
 
+// Input handling
+impl Form {
+    pub fn event_handler(&mut self, event: &Event) -> io::Result<EventHandlerResult> {
+        // Popup input handling
+        if let Some(select_form) = self.select_form.as_mut() {
+            let result = select_form.event_handler(event)?;
+            match result {
+                EventHandlerResult::Handled(EventResult::Submit) => {
+                    let selected = select_form.get_selection();
+                    if select_form.select_type == Select::Single {
+                        debug!("Selected: {:?}", selected);
+                        assert!(
+                            selected.len() <= 1,
+                            "Single should only return none or one item"
+                        );
+                    }
+                    self.select_form = None;
+                    if let Some(f) = self.current_field() {
+                        f.value = selected
+                            .first()
+                            .map(|s| s.as_str())
+                            .unwrap_or_default()
+                            .to_string();
+                    };
+                    self.current_pos = self
+                        .current_field()
+                        .map(|f| f.pos)
+                        .unwrap_or(self.current_pos);
+                    return Ok(EventHandlerResult::Handled(EventResult::None));
+                }
+                EventHandlerResult::Handled(EventResult::Abort) => {
+                    debug!("Aborted");
+                    self.select_form = None;
+                    return Ok(EventHandlerResult::Handled(EventResult::None));
+                }
+                _ => return Ok(result),
+            };
+        }
+
+        let mut current_pos = self.current_pos;
+
+        if let Some(current_field) = self.current_field() {
+            if let EventHandlerResult::Handled(result) =
+                current_field.event_handler(event, &mut current_pos)?
+            {
+                self.current_pos = current_pos;
+                return Ok(EventHandlerResult::Handled(result));
+            }
+        }
+
+        match event {
+            Event::Key(k) if k.code == KeyCode::Esc => {
+                return Ok(EventHandlerResult::Handled(EventResult::Abort));
+            }
+            Event::Key(k) if k.code == KeyCode::Enter => {
+                return Ok(EventHandlerResult::Handled(EventResult::Submit));
+            }
+            Event::Key(k) if k.code == KeyCode::Left => {
+                self.move_event(k.code);
+            }
+            Event::Key(k) if k.code == KeyCode::Right => {
+                self.move_event(k.code);
+            }
+            Event::Key(k) if k.code == KeyCode::Up => {
+                self.move_event(k.code);
+            }
+            Event::Key(k) if k.code == KeyCode::Down => {
+                self.move_event(k.code);
+            }
+            Event::Key(k) if k.code == KeyCode::Tab => {
+                self.next_input();
+            }
+            Event::Key(k) if k.code == KeyCode::BackTab => {
+                self.prev_input();
+            }
+            Event::Key(k) if k.code == KeyCode::F(4) => {
+                debug!("Display select form");
+                let Some(current_field) = self.current_field() else {
+                    return Ok(EventHandlerResult::Handled(EventResult::None));
+                };
+
+                let mut select_form =
+                    SelectForm::new(&current_field.select_static, (80, 24), Select::Single)?;
+                select_form.display(&mut std::io::stdout())?;
+
+                self.select_form = Some(select_form);
+            }
+            _ => return Ok(EventHandlerResult::NotHandled),
+        }
+
+        Ok(EventHandlerResult::Handled(EventResult::None))
+    }
+}
+
 impl Form {
     pub fn display(&mut self, stdout: &mut Stdout) -> io::Result<()> {
+        if let Some(select_form) = self.select_form.as_mut() {
+            return select_form.display(stdout);
+        }
+
         // Clear dialog
         stdout
             .queue(cursor::MoveTo(self.size.x, self.size.y))?
@@ -181,63 +282,6 @@ impl Form {
         .constrain(self.size)
     }
 
-    pub fn key(&mut self, key: char) {
-        self.inputs
-            .iter_mut()
-            .find(|i| i.has_focus(self.current_pos))
-            .map(|i| {
-                if let Some(str_pos) = self.current_pos.within(i.pos, i.length) {
-                    if let Some(ac) = &i.allowed_characters {
-                        if !ac.contains(&key) {
-                            return;
-                        }
-                    }
-
-                    self.current_pos = self.current_pos.move_x(1, i.pos.x + i.length);
-
-                    i.value = set_char_in_string(&i.value, str_pos, key);
-                }
-            });
-    }
-
-    pub(crate) fn delete_in_string(input: &str, pos: usize) -> String {
-        let input_len = input.chars().count();
-        if pos > input_len {
-            return input.to_string();
-        }
-
-        let mut output: String = input.chars().take(pos).collect();
-        output.extend(input.chars().skip(pos + 1));
-
-        output
-    }
-
-    pub fn key_backspace(&mut self) -> io::Result<()> {
-        self.inputs
-            .iter_mut()
-            .find(|i| i.has_focus(self.current_pos))
-            .map(|i| {
-                if let Some(str_pos) = self.current_pos.within(i.pos, i.length) {
-                    self.current_pos = self.current_pos.move_x(-1, i.pos.x + i.length);
-
-                    i.value = Self::delete_in_string(&i.value, str_pos - 1);
-                }
-            });
-        Ok(())
-    }
-
-    pub fn key_delete(&mut self) -> io::Result<()> {
-        self.inputs
-            .iter_mut()
-            .find(|i| i.has_focus(self.current_pos))
-            .map(|i| {
-                if let Some(str_pos) = self.current_pos.within(i.pos, i.length) {
-                    i.value = Self::delete_in_string(&i.value, str_pos);
-                }
-            });
-        Ok(())
-    }
-
     pub(crate) fn find_next_input(&mut self) -> Option<Pos> {
         let mut inputs = self.inputs.clone();
         inputs.sort();
@@ -287,8 +331,11 @@ impl Form {
         loop {
             // Return None if no input fields
             let Some(input) = i.next() else {
+                debug!("Returning last");
                 return inputs.last().map(|w| w.pos);
             };
+
+            debug!("Comparing {:?} to {:?}", self.current_pos, input.pos);
 
             match self.current_pos.cmp(&input.pos) {
                 // Current pos is before the input pos
@@ -329,43 +376,6 @@ impl Form {
             .iter_mut()
             .find(|f| f.has_focus(self.current_pos))
     }
-
-    pub fn select_popup(&mut self) -> io::Result<()> {
-        let Some(current_field) = self.current_field() else {
-            return Ok(());
-        };
-
-        match current_field.select {
-            Select::SingleSelect => {
-                debug!("Popup dialog for input {}", current_field.name);
-                let mut form = SelectForm::new(&current_field.select_static, (80, 24))?;
-
-                form.display(&mut std::io::stdout())?;
-            }
-            Select::MultiSelect => unimplemented!("MultiSelect is not yet implemented"),
-            Select::None => (),
-        }
-
-        Ok(())
-    }
-}
-
-fn set_char_in_string(s: &str, pos: usize, ch: char) -> String {
-    let mut s = s.to_string();
-
-    let len = s.chars().count();
-
-    if len <= pos {
-        let rep = " ".repeat(pos - len + 1);
-        s.push_str(&rep);
-    }
-
-    let mut output: String = s.chars().take(pos).collect();
-
-    output.push(ch);
-    output.extend(s.chars().skip(pos + 1));
-
-    output
 }
 
 impl Form {
@@ -389,7 +399,7 @@ impl Form {
 
         if let Some(input) = input {
             if input.select == Select::None {
-                input.select = Select::SingleSelect;
+                input.select = Select::Single;
             }
 
             input.select_static.push((id, value));
@@ -424,34 +434,5 @@ impl Form {
         }
 
         output
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn set_char_in_string_plain() {
-        let input = "1234567890";
-        let pos = 2;
-        let ch = 'a';
-        let expected = "12a4567890";
-
-        let output = set_char_in_string(input, pos, ch);
-
-        assert_eq!(output, expected);
-    }
-
-    #[test]
-    fn set_char_in_string_nls() {
-        let input = "1æ34567890";
-        let pos = 2;
-        let ch = 'ö';
-        let expected = "1æö4567890";
-
-        let output = set_char_in_string(input, pos, ch);
-
-        assert_eq!(output, expected);
     }
 }

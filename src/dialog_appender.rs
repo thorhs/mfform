@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::sync::{Arc, Mutex, RwLock};
 
 use crossterm::terminal::ClearType;
-use crossterm::{cursor, style, terminal, tty, QueueableCommand};
+use crossterm::{cursor, style, terminal, QueueableCommand};
 
 use log4rs::append::Append;
 

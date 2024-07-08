@@ -1,10 +1,8 @@
-use crate::pos::Pos;
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Select {
     None,
-    SingleSelect,
-    MultiSelect,
+    Single,
+    Multi,
 }
 
 #[derive(Debug, Clone, Eq)]
