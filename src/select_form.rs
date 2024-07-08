@@ -119,7 +119,9 @@ impl SelectForm {
                 return Ok(EventHandlerResult::Handled(EventResult::Abort));
             }
             Event::Key(k) if k.code == KeyCode::Enter => {
-                return Ok(EventHandlerResult::Handled(EventResult::Submit));
+                if self.select_type == Select::Single && self.get_selection().len() <= 1 {
+                    return Ok(EventHandlerResult::Handled(EventResult::Submit));
+                }
             }
             Event::Key(k) if k.code == KeyCode::Left => {
                 self.move_event(k.code);
