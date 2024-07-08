@@ -98,6 +98,8 @@ with a 3270-like dialog asking for input.
 ### Built With
 
 * [![Rust][Rustlang.org]][Rust-url]
+* [![Crossterm][crossterm-logo]][Crossterm-url]
+* [![nom][nom-logo]][nom-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -255,3 +257,7 @@ Project Link: [https://github.com/thorhs/mfform](https://github.com/thorhs/mffor
 [Hercules-url]: http://www.hercules-390.org
 [Rustlang.org]: https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust
 [Rust-url]: https://rustlang.org
+[crossterm-logo]: https://github.com/crossterm-rs/crossterm/raw/master/docs/crossterm_full.png
+[Crossterm-url]: https://github.com/crossterm-rs/crossterm
+[nom-logo]: https://raw.githubusercontent.com/Geal/nom/main/assets/nom.png
+[nom-url]: https://github.com/rust-bakery/nom
