@@ -1,6 +1,6 @@
 [package]
 name = "mfform"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 
 description = "A simple input form simulating mainframe input forms, think 3270."
