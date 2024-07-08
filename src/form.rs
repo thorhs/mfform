@@ -185,11 +185,13 @@ impl Form {
                     return Ok(EventHandlerResult::Handled(EventResult::None));
                 };
 
-                let mut select_form =
-                    SelectForm::new(&current_field.select_static, (80, 24), Select::Single)?;
-                select_form.display(&mut std::io::stdout())?;
+                if current_field.select == Select::Single {
+                    let mut select_form =
+                        SelectForm::new(&current_field.select_static, (80, 24), Select::Single)?;
+                    select_form.display(&mut std::io::stdout())?;
 
-                self.select_form = Some(select_form);
+                    self.select_form = Some(select_form);
+                }
             }
             _ => return Ok(EventHandlerResult::NotHandled),
         }
