@@ -39,6 +39,7 @@ pub struct SelectForm {
     pub(crate) current_pos: Pos,
     pub(crate) size: Pos,
     pub(crate) select_type: Select,
+    pub(crate) error_message: Option<&'static str>,
 }
 
 impl SelectForm {
@@ -52,6 +53,7 @@ impl SelectForm {
             current_pos: FIRST_FIELD_POS,
             size: size.into(),
             select_type,
+            error_message: None,
         })
     }
 
@@ -75,6 +77,15 @@ impl SelectForm {
             .queue(cursor::MoveTo(self.size.x, self.size.y))?
             .queue(terminal::Clear(ClearType::FromCursorUp))?;
 
+        if let Some(error_message) = self.error_message {
+            stdout
+                .queue(cursor::MoveTo(
+                    (self.size.x / 2).saturating_sub(error_message.len() as u16 / 2),
+                    self.size.y - 1,
+                ))?
+                .queue(style::SetForegroundColor(style::Color::DarkRed))?
+                .queue(style::Print(error_message))?;
+        }
         // Border
         stdout.queue(style::SetForegroundColor(style::Color::DarkGreen))?;
         for y in 0..24 {
@@ -121,6 +132,8 @@ impl SelectForm {
             Event::Key(k) if k.code == KeyCode::Enter => {
                 if self.select_type == Select::Single && self.get_selection().len() <= 1 {
                     return Ok(EventHandlerResult::Handled(EventResult::Submit));
+                } else {
+                    self.error_message = Some("Too many selected");
                 }
             }
             Event::Key(k) if k.code == KeyCode::Left => {
