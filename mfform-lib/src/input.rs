@@ -16,6 +16,10 @@ pub enum Select {
     Multi,
 }
 
+/// Generic input field, supporting masked input (password) and number fields.
+///
+/// Also supports 'select'able fields, where the user can press F4 to get a list
+/// of predefined values.
 #[derive(Debug, Clone)]
 pub struct Input {
     pub pos: Pos,
@@ -50,10 +54,11 @@ impl PartialOrd for Input {
 }
 
 impl Input {
-    pub fn has_focus(&self, cursor: Pos) -> bool {
+    pub(crate) fn has_focus(&self, cursor: Pos) -> bool {
         cursor.within(self.pos, self.length).is_some()
     }
 
+    /// Create a InputBuilder for creating a new Input field.
     pub fn builder(pos: impl Into<Pos>, length: u16, name: impl Into<String>) -> InputBuilder {
         InputBuilder {
             pos: pos.into(),
@@ -68,7 +73,7 @@ impl Input {
         }
     }
 
-    pub fn event_handler(
+    pub(crate) fn event_handler(
         &mut self,
         event: &Event,
         current_pos: &mut Pos,
@@ -100,7 +105,7 @@ impl Input {
         Ok(EventHandlerResult::Handled(EventResult::None))
     }
 
-    pub fn key(&mut self, key: char, current_pos: &mut Pos) {
+    pub(crate) fn key(&mut self, key: char, current_pos: &mut Pos) {
         let str_pos = current_pos.x - self.pos.x;
         *current_pos = current_pos.move_x(1, self.pos.x + self.length);
 

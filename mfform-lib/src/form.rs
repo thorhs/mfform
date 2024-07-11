@@ -19,6 +19,7 @@ use crate::{
     select_form::SelectForm,
 };
 
+/// Normal input form
 #[derive(Debug, Clone)]
 pub struct Form {
     pub(crate) labels: Vec<Label>,
@@ -29,6 +30,7 @@ pub struct Form {
 }
 
 impl Form {
+    /// Construct a Form object, given the input dimensions.
     pub fn new(size: impl Into<Pos>) -> io::Result<Self> {
         Ok(Self {
             labels: Default::default(),
@@ -38,75 +40,9 @@ impl Form {
             select_form: None,
         })
     }
-}
 
-fn display_string(stdout: &mut Stdout, input: &Input) -> io::Result<()> {
-    stdout
-        .queue(cursor::MoveTo(input.pos.x, input.pos.y))?
-        .queue(style::SetAttribute(style::Attribute::Underlined))?;
-    for i in 0..(input.length as usize) {
-        match (
-            input.value.chars().nth(i),
-            input.default_value.chars().nth(i),
-        ) {
-            (Some(s), Some(d)) if s != d => {
-                stdout
-                    .queue(style::SetForegroundColor(style::Color::DarkRed))?
-                    .queue(style::Print(s))?;
-            }
-            (Some(s), Some(_)) => {
-                stdout
-                    .queue(style::SetForegroundColor(style::Color::DarkGreen))?
-                    .queue(style::Print(s))?;
-            }
-            (Some(s), None) => {
-                stdout
-                    .queue(style::SetForegroundColor(style::Color::DarkRed))?
-                    .queue(style::Print(s))?;
-            }
-            _ => {
-                stdout
-                    .queue(style::SetForegroundColor(style::Color::DarkGreen))?
-                    .queue(style::Print(" "))?;
-            }
-        }
-    }
-
-    stdout.queue(style::SetAttribute(style::Attribute::NoUnderline))?;
-
-    Ok(())
-}
-
-fn display_password(stdout: &mut Stdout, input: &Input) -> io::Result<()> {
-    let pass_len = input.value.chars().count();
-
-    // We only get called if there is a mask_char
-    let mask_char = input.mask_char.unwrap();
-    stdout
-        .queue(cursor::MoveTo(input.pos.x, input.pos.y))?
-        .queue(style::SetAttribute(style::Attribute::Underlined))?
-        .queue(style::SetForegroundColor(style::Color::DarkRed))?
-        .queue(style::Print(mask_char.to_string().repeat(pass_len)))?
-        .queue(style::SetForegroundColor(style::Color::DarkGreen))?
-        .queue(style::Print(" ".repeat(input.length as usize - pass_len)))?
-        .queue(style::SetAttribute(style::Attribute::NoUnderline))?;
-
-    Ok(())
-}
-
-fn display_generic(stdout: &mut Stdout, input: &Input) -> io::Result<()> {
-    if input.mask_char.is_some() {
-        display_password(stdout, input)?;
-    } else {
-        display_string(stdout, input)?;
-    }
-
-    Ok(())
-}
-
-// Input handling
-impl Form {
-    pub fn event_handler(&mut self, event: &Event) -> io::Result<EventHandlerResult> {
+    // Input handling
+    pub(crate) fn event_handler(&mut self, event: &Event) -> io::Result<EventHandlerResult> {
         // Popup input handling
         if let Some(select_form) = self.select_form.as_mut() {
             let result = select_form.event_handler(event)?;
@@ -198,10 +134,8 @@ impl Form {
 
         Ok(EventHandlerResult::Handled(EventResult::None))
     }
-}
 
-impl Form {
-    pub fn display(&mut self, stdout: &mut Stdout) -> io::Result<()> {
+    pub(crate) fn display(&mut self, stdout: &mut Stdout) -> io::Result<()> {
         if let Some(select_form) = self.select_form.as_mut() {
             return select_form.display(stdout);
         }
@@ -258,10 +192,8 @@ impl Form {
 
         stdout.flush()
     }
-}
 
-impl Form {
-    pub fn move_event(&mut self, code: KeyCode) {
+    pub(crate) fn move_event(&mut self, code: KeyCode) {
         self.current_pos = match code {
             KeyCode::Left => Pos {
                 x: self.current_pos.x.checked_sub(1).unwrap_or_default(),
@@ -361,26 +293,28 @@ impl Form {
         }
     }
 
+    /// Move cursor to next input
     pub fn next_input(&mut self) {
         if let Some(pos) = self.find_next_input() {
             self.current_pos = pos;
         }
     }
 
+    /// Move cursor to previous input
     pub fn prev_input(&mut self) {
         if let Some(pos) = self.find_prev_input() {
             self.current_pos = pos;
         }
     }
 
-    fn current_field(&mut self) -> Option<&mut Input> {
+    /// Get input field under cursor
+    pub fn current_field(&mut self) -> Option<&mut Input> {
         self.inputs
             .iter_mut()
             .find(|f| f.has_focus(self.current_pos))
     }
-}
 
-impl Form {
+    /// Add text label to form at specified position with supplied text
     #[allow(dead_code)]
     pub fn add_text(mut self, pos: impl Into<Pos>, text: impl Into<String>) -> Self {
         self.labels.push(Label::new_label(pos, text));
@@ -388,15 +322,23 @@ impl Form {
         self
     }
 
-    pub(crate) fn add_label(&mut self, label: Label) {
+    /// Add a label to the form, label must be created beforehand
+    pub fn add_label(&mut self, label: Label) {
         self.labels.push(label);
     }
 
-    pub(crate) fn add_input(&mut self, input: Input) {
+    /// Add an input to the form, label must be created beforehand
+    pub fn add_input(&mut self, input: Input) {
         self.inputs.push(input);
     }
 
-    pub(crate) fn add_select(&mut self, input: String, id: String, value: String) {
+    /// Add select option to an imput field in the form.
+    ///
+    /// Adding an option to a field enables the 'Select (F4)' function on
+    /// the input field.  This in effect changes the input field to have
+    /// SingleSelct behavior.  Options will be displayed in the order they
+    /// are added.
+    pub fn add_select(&mut self, input: String, id: String, value: String) {
         let input = self.inputs.iter_mut().find(|i| i.name == input);
 
         if let Some(input) = input {
@@ -411,6 +353,8 @@ impl Form {
         }
     }
 
+    /// Place the cursor on the next available input, or on 0,0 if no inputs
+    /// are present.
     pub fn place_cursor(mut self) -> Self {
         self.current_pos = self.find_next_input().unwrap_or((0, 0).into());
 
@@ -428,6 +372,7 @@ impl Form {
         })
     }
 
+    /// Return an array of input field name and values
     pub fn get_field_and_data(&self) -> Vec<(&str, &str)> {
         let mut output = Vec::new();
 
@@ -437,4 +382,68 @@ impl Form {
 
         output
     }
+}
+
+fn display_string(stdout: &mut Stdout, input: &Input) -> io::Result<()> {
+    stdout
+        .queue(cursor::MoveTo(input.pos.x, input.pos.y))?
+        .queue(style::SetAttribute(style::Attribute::Underlined))?;
+    for i in 0..(input.length as usize) {
+        match (
+            input.value.chars().nth(i),
+            input.default_value.chars().nth(i),
+        ) {
+            (Some(s), Some(d)) if s != d => {
+                stdout
+                    .queue(style::SetForegroundColor(style::Color::DarkRed))?
+                    .queue(style::Print(s))?;
+            }
+            (Some(s), Some(_)) => {
+                stdout
+                    .queue(style::SetForegroundColor(style::Color::DarkGreen))?
+                    .queue(style::Print(s))?;
+            }
+            (Some(s), None) => {
+                stdout
+                    .queue(style::SetForegroundColor(style::Color::DarkRed))?
+                    .queue(style::Print(s))?;
+            }
+            _ => {
+                stdout
+                    .queue(style::SetForegroundColor(style::Color::DarkGreen))?
+                    .queue(style::Print(" "))?;
+            }
+        }
+    }
+
+    stdout.queue(style::SetAttribute(style::Attribute::NoUnderline))?;
+
+    Ok(())
+}
+
+fn display_password(stdout: &mut Stdout, input: &Input) -> io::Result<()> {
+    let pass_len = input.value.chars().count();
+
+    // We only get called if there is a mask_char
+    let mask_char = input.mask_char.unwrap();
+    stdout
+        .queue(cursor::MoveTo(input.pos.x, input.pos.y))?
+        .queue(style::SetAttribute(style::Attribute::Underlined))?
+        .queue(style::SetForegroundColor(style::Color::DarkRed))?
+        .queue(style::Print(mask_char.to_string().repeat(pass_len)))?
+        .queue(style::SetForegroundColor(style::Color::DarkGreen))?
+        .queue(style::Print(" ".repeat(input.length as usize - pass_len)))?
+        .queue(style::SetAttribute(style::Attribute::NoUnderline))?;
+
+    Ok(())
+}
+
+fn display_generic(stdout: &mut Stdout, input: &Input) -> io::Result<()> {
+    if input.mask_char.is_some() {
+        display_password(stdout, input)?;
+    } else {
+        display_string(stdout, input)?;
+    }
+
+    Ok(())
 }

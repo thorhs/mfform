@@ -1,8 +1,8 @@
 use std::iter::empty;
 
-use crate::form::Form;
-use crate::input::Input;
-use crate::label::Label;
+use mfform_lib::Form;
+use mfform_lib::Input;
+use mfform_lib::Label;
 
 #[test]
 fn find_next() {

@@ -1,5 +1,5 @@
 use std::{
-    io::{self, BufRead, Stdout},
+    io::{self, Stdout},
     sync::{Arc, RwLock},
 };
 
@@ -11,13 +11,18 @@ use crossterm::{
 use log::debug;
 use log4rs::Handle;
 
-use crate::{form::Form, pos::Pos};
+use crate::form::Form;
 
+/// Result of a Form execute
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum EventResult {
+    /// User submitted form, data is in the form fields
     Submit,
+    /// User aborted form, no garantee about contents of fields
     Abort,
+    /// User requested a toggle of debug output
     ToggleDebug,
+    /// No result yet, keep processing events
     None,
 }
 
@@ -27,6 +32,7 @@ pub enum EventHandlerResult {
     NotHandled,
 }
 
+/// A base App object which 'owns' the terminal, manages logging etc.
 pub struct App {
     stdout: Stdout,
     _logger_handle: log4rs::Handle,
@@ -34,6 +40,11 @@ pub struct App {
 }
 
 impl App {
+    /// Constructor for the App struct which takes in the output where to write
+    /// the output of the program
+    ///```
+    ///let app = with_writer().init()?;
+    ///```
     pub fn with_writer(stdout: Stdout) -> Self {
         let logging_enabled = Arc::new(RwLock::new(false));
 
@@ -46,6 +57,10 @@ impl App {
         }
     }
 
+    /// Initialize the terminal, place it into 'cooked' mode and install panic handler.
+    ///```
+    ///let app = with_writer().init()?;
+    ///```
     pub fn init(&mut self) -> io::Result<()> {
         self.init_terminal()?;
         self.install_panic_handler();
@@ -79,6 +94,7 @@ impl App {
         Ok(())
     }
 
+    /// Toggles debug output
     pub fn toggle_log_output(&self) -> io::Result<()> {
         if Self::is_logging_enabled(self.logging_enabled.clone()) {
             self.disable_log_output()?;
@@ -121,10 +137,7 @@ impl App {
 
         Ok(())
     }
-}
 
-// Static functions
-impl App {
     fn configure_logging(logging_enabled: Arc<RwLock<bool>>) -> Handle {
         use log::LevelFilter;
         use log4rs::append::file::FileAppender;
@@ -158,6 +171,8 @@ impl App {
         logging_enabled.read().map(|e| *e).unwrap_or(false)
     }
 
+    /// Process keyboard input, returning an EventResult indicating wheter the user
+    /// submittied, aobrted, toggled debug output or if further input is required.
     pub fn keyboard_event(&mut self, form: &mut Form, ev: Event) -> io::Result<EventResult> {
         match ev {
             Event::Key(k) if k.code == KeyCode::Esc => {
@@ -189,6 +204,8 @@ impl App {
         Ok(EventResult::None)
     }
 
+    /// Executes a form to completion.  This is the event loop of a program under normal
+    /// conditions.  Uses the crossterm input events.
     pub fn execute(&mut self, form: &mut Form) -> io::Result<EventResult> {
         let mut output = EventResult::None;
         loop {
@@ -229,33 +246,6 @@ impl App {
         }
 
         Ok(output)
-    }
-}
-
-// Form creation fucctions
-impl App {
-    pub fn form_from_textfile(&self, size: impl Into<Pos>) -> io::Result<Form> {
-        let mut form = Form::new(size)?;
-
-        let file = std::fs::File::open("screen.mfform")?;
-        let mut reader = std::io::BufReader::new(file);
-
-        let mut line = String::new();
-        while let Ok(read_bytes) = reader.read_line(&mut line) {
-            if read_bytes == 0 {
-                break;
-            }
-
-            if line.len() > 5 {
-                crate::parser::parse_str(&mut form, line.trim())
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-            }
-            line.clear();
-        }
-
-        let form = form.place_cursor();
-
-        Ok(form)
     }
 }
 

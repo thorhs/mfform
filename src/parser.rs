@@ -1,4 +1,4 @@
-use crate::{form::Form, input::Input, label::Label};
+use mfform_lib::{Form, Input, Label};
 use nom::{
     branch::alt,
     bytes::complete::tag,

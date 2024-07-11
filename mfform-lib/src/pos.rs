@@ -1,5 +1,6 @@
 use std::cmp::{max, min};
 
+/// Position on screen
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Pos {
     pub x: u16,
@@ -7,14 +8,14 @@ pub struct Pos {
 }
 
 impl Pos {
-    pub fn constrain<I: Into<Self> + Copy>(self, other: I) -> Self {
+    pub(crate) fn constrain<I: Into<Self> + Copy>(self, other: I) -> Self {
         Self {
             x: max(min(self.x, other.into().x - 1), 0),
             y: max(min(self.y, other.into().y - 1), 0),
         }
     }
 
-    pub fn within(self, other: Self, length: u16) -> Option<usize> {
+    pub(crate) fn within(self, other: Self, length: u16) -> Option<usize> {
         if self.x >= other.x && self.x <= other.x + length && self.y == other.y {
             Some((self.x - other.x) as usize)
         } else {
@@ -22,7 +23,7 @@ impl Pos {
         }
     }
 
-    pub fn move_x(self, by: i16, max: u16) -> Self {
+    pub(crate) fn move_x(self, by: i16, max: u16) -> Self {
         Pos {
             x: (self.x as i16 + by) as u16,
             y: self.y,

@@ -1,5 +1,6 @@
 use crate::pos::Pos;
 
+/// Text label
 #[derive(Debug, Clone, Eq)]
 pub struct Label {
     pub pos: Pos,
@@ -25,6 +26,7 @@ impl PartialOrd for Label {
 }
 
 impl Label {
+    /// Create a new label at the specified position
     pub fn new_label(pos: impl Into<Pos>, text: impl Into<String>) -> Self {
         let text: String = text.into();
         Self {

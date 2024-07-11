@@ -1,16 +1,32 @@
-use std::io;
+use std::io::{self, BufRead};
 
-mod app;
-mod dialog_appender;
-mod form;
-mod input;
-mod label;
 mod parser;
-mod pos;
-mod select_form;
-mod vec_appender;
 
-use app::{App, EventResult};
+use mfform_lib::{App, EventResult, Form, Pos};
+
+pub fn form_from_textfile(input_file: impl AsRef<str>, size: impl Into<Pos>) -> io::Result<Form> {
+    let mut form = Form::new(size)?;
+
+    let file = std::fs::File::open(input_file.as_ref())?;
+    let mut reader = std::io::BufReader::new(file);
+
+    let mut line = String::new();
+    while let Ok(read_bytes) = reader.read_line(&mut line) {
+        if read_bytes == 0 {
+            break;
+        }
+
+        if line.len() > 5 {
+            crate::parser::parse_str(&mut form, line.trim())
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        }
+        line.clear();
+    }
+
+    let form = form.place_cursor();
+
+    Ok(form)
+}
 
 fn main() -> io::Result<()> {
     let stdout = io::stdout();
@@ -18,7 +34,7 @@ fn main() -> io::Result<()> {
     let mut app = App::with_writer(stdout);
     app.init()?;
 
-    let mut form = app.form_from_textfile((82, 24))?;
+    let mut form = form_from_textfile("screen.mfform", (82, 24))?;
 
     let result = app.execute(&mut form)?;
 
@@ -34,6 +50,3 @@ fn main() -> io::Result<()> {
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

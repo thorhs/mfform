@@ -1,6 +1,9 @@
+[workspace]
+members = ["mfform-lib"]
+
 [package]
 name = "mfform"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 
 description = "A simple input form simulating mainframe input forms, think 3270."
@@ -9,19 +12,12 @@ documentation = "https://docs.rs/mfform"
 homepage = "https://github.com/thorhs/mfform"
 repository = "https://github.com/thorhs/mfform"
 
-[lib]
-name = "mfform"
-path = "src/lib.rs"
-
 [[bin]]
 name = "mfform"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1.0.86"
-crossterm = "0.27.0"
-log = "0.4.22"
-log4rs = "1.3.0"
-log4rs_test_utils = "0.2.3"
-nom = "7.1.3"
-snailquote = "0.3.1"
+mfform-lib = { path = "mfform-lib" }
+log = "0.4"
+nom = "7"
+snailquote = "0.3"
