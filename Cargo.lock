@@ -287,10 +287,10 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "mfform"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "log",
- "mfform-lib 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mfform-lib 0.3.0",
  "nom",
  "snailquote",
 ]
@@ -298,6 +298,8 @@ dependencies = [
 [[package]]
 name = "mfform-lib"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb645b34dbd0cfe0ac4060c1da85fde3f74e188e16039f96d882b7b0bb02e770"
 dependencies = [
  "anyhow",
  "crossterm",
@@ -308,9 +310,7 @@ dependencies = [
 
 [[package]]
 name = "mfform-lib"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb645b34dbd0cfe0ac4060c1da85fde3f74e188e16039f96d882b7b0bb02e770"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "crossterm",
