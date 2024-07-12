@@ -1,10 +1,13 @@
-use std::io::{self, BufRead};
+use std::{
+    ffi::{OsStr, OsString},
+    io::{self, BufRead},
+};
 
 mod parser;
 
 use mfform_lib::{App, EventResult, Form, Pos};
 
-pub fn form_from_textfile(input_file: impl AsRef<str>, size: impl Into<Pos>) -> io::Result<Form> {
+pub fn form_from_textfile(input_file: impl AsRef<OsStr>, size: impl Into<Pos>) -> io::Result<Form> {
     let mut form = Form::new(size)?;
 
     let file = std::fs::File::open(input_file.as_ref())?;
@@ -31,10 +34,18 @@ pub fn form_from_textfile(input_file: impl AsRef<str>, size: impl Into<Pos>) -> 
 fn main() -> io::Result<()> {
     let stdout = io::stdout();
 
+    let mut args = std::env::args_os();
+    let screen_name = if args.len() > 1 {
+        let _ = args.next().unwrap();
+        args.next().unwrap()
+    } else {
+        OsString::from("screen.mfform")
+    };
+
     let mut app = App::with_writer(stdout);
     app.init()?;
 
-    let mut form = form_from_textfile("screen.mfform", (82, 24))?;
+    let mut form = form_from_textfile(screen_name, (82, 24))?;
 
     let result = app.execute(&mut form)?;
 
