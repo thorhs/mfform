@@ -290,7 +290,7 @@ name = "mfform"
 version = "0.3.0"
 dependencies = [
  "log",
- "mfform-lib",
+ "mfform-lib 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "nom",
  "snailquote",
 ]
@@ -298,6 +298,19 @@ dependencies = [
 [[package]]
 name = "mfform-lib"
 version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "crossterm",
+ "log",
+ "log4rs",
+ "log4rs_test_utils",
+]
+
+[[package]]
+name = "mfform-lib"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb645b34dbd0cfe0ac4060c1da85fde3f74e188e16039f96d882b7b0bb02e770"
 dependencies = [
  "anyhow",
  "crossterm",
